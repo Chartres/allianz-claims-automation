@@ -50,10 +50,12 @@ function findSample() {
   await portal.selectDropdown(page, 'paymentMethod', found.method.find(m => /bank/i.test(m)) || found.method[0]).catch(() => {});
   await portal.selectDropdown(page, 'paymentCurrency', new RegExp(cfg.portal.currencyMatch || '^CZK')).catch(() => {});
   await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(500);
-  // saved bank accounts: nx-radio texts like "****1234  CZE"
-  found.banks = (await page.locator('nx-radio').allInnerTexts().catch(() => []))
-    .map(t => t.replace(/\s+/g, ' ').trim()).filter(Boolean)
-    .map(t => ({ last4: (t.match(/(\d{4})\b/) || [])[1], country: (t.match(/\b([A-Z]{3})\b/) || [])[1], label: t }));
+  // saved bank accounts: in the page text the masked number is followed by a 3-letter country, e.g.
+  // "********1234\n\tCZE". Each account may be in a different currency, so capture country→currency.
+  const C2CUR = { CZE: 'CZK', SVK: 'EUR', LTU: 'EUR', DEU: 'EUR', AUT: 'EUR', FRA: 'EUR', IRL: 'EUR', ESP: 'EUR', ITA: 'EUR', NLD: 'EUR', PRT: 'EUR', GBR: 'GBP', USA: 'USD', POL: 'PLN', HUN: 'HUF', CHE: 'CHF', CAN: 'CAD', AUS: 'AUD' };
+  const bankText = await page.evaluate(() => document.body.innerText);
+  const seg = bankText.slice(Math.max(0, bankText.indexOf('Saved bank')), bankText.indexOf('CREATE NEW') >= 0 ? bankText.indexOf('CREATE NEW') : undefined);
+  found.banks = [...seg.matchAll(/(\d{4})\s+([A-Z]{3})\b/g)].map(m => ({ last4: m[1], country: m[2], currency: C2CUR[m[2]] || null }));
 
   // --- invoice form (upload sample to reveal patient + country) ---
   if (found.banks[0]) await page.locator('nx-radio', { hasText: found.banks[0].last4 || '' }).first().click({ timeout: 5000 }).catch(() => {});
@@ -90,9 +92,13 @@ function findSample() {
   out.portal.payee = await ask('Payee', found.payee.includes('Insured member') ? 'Insured member' : (found.payee[0] || out.portal.payee));
   out.portal.paymentMethod = await ask('Payment method', found.method.find(m => /bank/i.test(m)) || (found.method[0] || out.portal.paymentMethod));
   if (found.banks.length) {
-    console.log('  Saved bank accounts: ' + found.banks.map((b, i) => `${i + 1}) ****${b.last4} ${b.country || ''}`).join('   '));
-    const pick = found.banks.find(b => b.country === 'CZE') || found.banks[0];
-    out.portal.bankAccountMatch = await ask('Bank account — last 4 to match', pick.last4 || out.portal.bankAccountMatch);
+    console.log('  Saved bank accounts (each may be a different currency):');
+    found.banks.forEach((b, i) => console.log(`    ${i + 1}) ****${b.last4}  ${b.country || ''}${b.currency ? ' → ' + b.currency : ''}`));
+    const def = (found.banks.findIndex(b => b.last4 === out.portal.bankAccountMatch) + 1) || 1;
+    const idx = parseInt(await ask('Which account (number) — pick the one for your reimbursement currency', String(def)), 10) - 1;
+    const pick = found.banks[idx] || found.banks[0];
+    out.portal.bankAccountMatch = pick.last4;
+    out.portal.currencyMatch = await ask('Reimbursement currency match (regex)', pick.currency ? '^' + pick.currency : (out.portal.currencyMatch || '^CZK'));
   }
   const czCountry = found.countries.find(c => /czech/i.test(c));
   out.portal.countryMatch = await ask('Country of treatment', czCountry || out.portal.countryMatch);
