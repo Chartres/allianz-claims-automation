@@ -1,5 +1,10 @@
 # Allianz Care claims automation
 
+> **Setting up with an AI agent?** Just point Claude Code / Codex / Cursor at this repo and say
+> *"set this up for me"* — the README + `bin/onboard.js`/`bin/discover.js` are designed for an agent
+> to read and drive end-to-end. (Optional: connect the **Context7** MCP so the agent pulls current
+> docs for `playwright-core` / `exceljs`.)
+
 Drop invoice PDFs in a folder → they get parsed, classified by treatment type, matched to the
 right patient and supplementary documents (dental plan, X-rays, prescription, …), and filed as
 claims on the [Allianz Care MyHealth portal](https://my.allianzcare.com). Everything family- and
@@ -38,12 +43,23 @@ just drag email attachments into `intake/` yourself.
 ```bash
 brew install node poppler        # runtime + pdftotext  (Chrome you already have)
 npm install                      # playwright-core + exceljs
-node bin/onboard.js              # strong-defaulted Q&A → writes config.json
 ```
 
-`onboard.js` asks a handful of questions, each with a sensible **[default]** — press Enter to accept.
-It covers your docs folder, portal URL + policy ID, bank-account match, country/currency, optional
-Gmail label IDs, and family members (portal dropdown label + invoice name aliases). Re-run to edit.
+**Recommended — auto-discover from the portal + a sample invoice (you just confirm):**
+```bash
+node bin/launch-chrome.js        # opens the tool's own Chrome; log in there (it waits & confirms)
+node bin/discover.js invoice.pdf # reads payee/bank/country + your family from the portal, parses the
+                                 # sample invoice, shows each value → press Enter to accept → config.json
+```
+`discover.js` pulls your **saved bank accounts**, payee/payment-method options, country, and the
+**patient dropdown** (your family members with their exact portal labels) straight from the logged-in
+site, and reads the sample invoice for provider/patient hints — so you confirm rather than type. It
+uploads the sample only to reveal those fields, then abandons the draft (nothing is submitted).
+
+**Manual alternative** — strong-defaulted Q&A (no browser needed):
+```bash
+node bin/onboard.js              # press Enter to accept each [default]; re-run anytime to edit
+```
 
 <details><summary>Optional Google integration (Gmail intake / cloud sheet)</summary>
 
@@ -134,8 +150,11 @@ Allianz reimburses **paid** invoices. Two ways to satisfy it:
   no treatment plan exists).
 
 ## Notes / gotchas
-- The portal session is short-lived and per-browser; if a run reports `NOT_LOGGED_IN`, log back in
-  in the Chrome window and re-run.
+- **Log in to the right window.** The tool drives a *separate* Chrome with its own blank profile (the
+  one `bin/launch-chrome.js` opens), not your everyday Chrome. Log in there — `launch-chrome.js` watches
+  that exact browser and prints "✅ Logged in" once it sees the session, so there's no guessing.
+- The portal session is short-lived and per-browser; if a run reports `NOT_LOGGED_IN`, re-run
+  `bin/launch-chrome.js`, log in again, and resume (the crawler picks up where it left off).
 - The portal is an NX/Angular app: dropdowns are `nx-dropdown` (open, then click `role=option`);
   file inputs accept `setInputFiles` (multi-file). Final submit is **SUBMIT CLAIM → AGREE AND PROCEED**.
 - Newly submitted claims show **In-progress**; they flip to **Closed** once Allianz finishes (a few days).

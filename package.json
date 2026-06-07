@@ -6,6 +6,7 @@
   "type": "commonjs",
   "bin": {
     "allianz-onboard": "bin/onboard.js",
+    "allianz-discover": "bin/discover.js",
     "allianz-launch": "bin/launch-chrome.js",
     "allianz-intake": "bin/intake.js",
     "allianz-reconcile": "bin/reconcile.js",
@@ -17,6 +18,7 @@
   },
   "scripts": {
     "onboard": "node bin/onboard.js",
+    "discover": "node bin/discover.js",
     "launch": "node bin/launch-chrome.js",
     "intake": "node bin/intake.js",
     "file": "node bin/intake.js --file",
