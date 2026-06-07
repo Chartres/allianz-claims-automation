@@ -70,9 +70,19 @@ function findSample() {
   await browser.close();
 
   // --- sample invoice text (provider + patient name suggestions) ---
+  // The Czech invoice puts supplier (Dodavatel) and customer (Odběratel/Příjemce) in two columns;
+  // the names are on the line after the header, split by runs of spaces.
   const raw = pdfText(sample);
-  const supplier = (raw.match(/Dodavatel:\s*\n?\s*([^\n\t]+)/i) || raw.match(/^([A-ZÁ-Ž][^\n]{3,40}(?:s\.r\.o\.|Clinic|Medical|a\.s\.))/m) || [])[1] || '';
-  const odberatel = (raw.match(/Odběratel:\s*\n?\s*([^\n\t]+)/i) || [])[1] || '';
+  const lines = raw.split('\n');
+  let supplier = '', odberatel = '';
+  const hdr = lines.findIndex(l => /Dodavatel/i.test(l) && /(Odběratel|Příjemce|Prijemce)/i.test(l));
+  if (hdr >= 0 && lines[hdr + 1]) {
+    const cols = lines[hdr + 1].split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+    supplier = cols[0] || ''; odberatel = cols.length > 1 ? cols[cols.length - 1] : '';
+  }
+  if (!supplier) supplier = (raw.match(/^\s*([A-ZÁ-Ž][^\n]{3,40}(?:s\.r\.o\.|Clinic|Medical|a\.s\.))/m) || [])[1] || '';
+  if (!odberatel) odberatel = (raw.match(/Odběratel:\s*([^\n\t]+)/i) || [])[1] || '';
+  supplier = supplier.trim(); odberatel = odberatel.trim();
 
   // --- build config (merge onto existing config.json or the example) ---
   const out = JSON.parse(JSON.stringify(cfg)); delete out._root; delete out._file;
