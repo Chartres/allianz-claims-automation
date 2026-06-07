@@ -1,0 +1,33 @@
+{
+  "name": "allianz-claims-automation",
+  "version": "1.0.0",
+  "description": "Config-driven automation for filing Allianz Care health-insurance claims from invoice PDFs.",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "allianz-onboard": "bin/onboard.js",
+    "allianz-launch": "bin/launch-chrome.js",
+    "allianz-intake": "bin/intake.js",
+    "allianz-reconcile": "bin/reconcile.js",
+    "allianz-gmail-pull": "bin/gmail-pull.js",
+    "allianz-policy": "bin/policy.js",
+    "allianz-crawl": "bin/crawl.js",
+    "allianz-push": "bin/sheets-push.js"
+  },
+  "scripts": {
+    "onboard": "node bin/onboard.js",
+    "launch": "node bin/launch-chrome.js",
+    "intake": "node bin/intake.js",
+    "file": "node bin/intake.js --file",
+    "submit": "node bin/intake.js --submit",
+    "reconcile": "node bin/reconcile.js",
+    "gmail-pull": "node bin/gmail-pull.js",
+    "policy": "node bin/policy.js",
+    "crawl": "node bin/crawl.js",
+    "push": "node bin/sheets-push.js",
+    "track": "node bin/policy.js && node bin/crawl.js && node bin/sheets-push.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.60.0"
+  }
+}

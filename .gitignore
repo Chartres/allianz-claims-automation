@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# personal config & data (everything else is the reusable tool)
+config.json
+chrome-profile/
+data/
+confirmations/
+intake/*.pdf
+intake/_processed/
+*.png
+
+# scratch
+archive/
+/tmp/
+
+# macOS / scratch
+.DS_Store
+*.py
