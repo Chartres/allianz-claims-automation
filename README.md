@@ -18,23 +18,41 @@ intake/  ──parse──▶  classify ──match docs/payment──▶  drive
 - **`lib/gmail.js`** — `gws` wrappers to pull email attachments and move `_todo`→`_hotovo`
 - **`bin/intake.js`** — the end-to-end surface (dry-run / fill / submit)
 
+## Dependencies
+
+Everything you need for the core tool is a single `brew`/`npm` install with **no accounts or auth**:
+
+| Need it for | Install | Auth/setup? |
+|---|---|---|
+| **Core** (drive the portal, build the Excel tracker) | `brew install node` · Google Chrome · `npm install` | none |
+| **Filing from PDFs** (parse invoices) | `brew install poppler` (`pdftotext`) | none |
+| *Optional:* email intake + `_todo`→`_hotovo` labels | `brew install googleworkspace-cli` (`gws`) | Google OAuth |
+| *Optional:* shared cloud **Google** Sheet instead of local Excel | `gws` (as above) | Google OAuth |
+
+The tracker writes a **local Excel file** (`data/claims.xlsx`, formula-driven) by default — no Google
+account needed. `gws` is only for the optional Gmail automation or a shared cloud sheet; without it,
+just drag email attachments into `intake/` yourself.
+
 ## Onboarding (start here)
 
 ```bash
-brew install node poppler googleworkspace-cli   # runtime, pdftotext, gws (Gmail/Sheets)
-npm install                                       # playwright-core
-node bin/onboard.js                               # strong-defaulted Q&A → writes config.json
+brew install node poppler        # runtime + pdftotext  (Chrome you already have)
+npm install                      # playwright-core + exceljs
+node bin/onboard.js              # strong-defaulted Q&A → writes config.json
 ```
 
 `onboard.js` asks a handful of questions, each with a sensible **[default]** — press Enter to accept.
-It covers your docs folder, portal URL + policy ID, bank-account match, country/currency, Gmail label
-IDs, and family members (portal dropdown label + invoice name aliases). Re-run anytime to edit.
+It covers your docs folder, portal URL + policy ID, bank-account match, country/currency, optional
+Gmail label IDs, and family members (portal dropdown label + invoice name aliases). Re-run to edit.
 
-Then authorise Google once (for email intake + the Google Sheet tracker) — create a **Desktop** OAuth
-client in Google Cloud Console, save it to `~/.config/gws/client_secret.json`, and:
+<details><summary>Optional Google integration (Gmail intake / cloud sheet)</summary>
+
+Install `gws` (`brew install googleworkspace-cli`), create a **Desktop** OAuth client in Google Cloud
+Console, save it to `~/.config/gws/client_secret.json`, enable the Gmail/Sheets APIs for the project, and:
 ```bash
 gws auth login --scopes "https://www.googleapis.com/auth/gmail.modify,https://www.googleapis.com/auth/spreadsheets,https://www.googleapis.com/auth/drive.file"
 ```
+</details>
 
 ### What's in config.json
 - **patients** — portal dropdown label + invoice-name aliases.
@@ -59,16 +77,23 @@ node bin/reconcile.js              # prints claims history (id / date / status) 
 ## Claims & reimbursements tracker
 
 Crawls the whole portal history + your policy, checks every reimbursement against the policy, and
-publishes a cross-device **Google Sheet** (plus local `data/claims.json`, `data/policy.json`,
-`data/claims-overview.md`).
+builds a formula-driven **local Excel file** `data/claims.xlsx` (plus `data/claims.json`,
+`data/policy.json`, `data/claims-overview.md`). No account or auth required.
 
 ```bash
-npm run track          # = policy.js → crawl.js → sheets-push.js  (one command to refresh everything)
+npm run track          # = policy.js → crawl.js → report.js  (one command to refresh everything)
 # or individually:
 node bin/policy.js     # ingest My Benefits → data/policy.json (hashed; only rewrites when it changes)
 node bin/crawl.js      # crawl claims → data/claims.json  (--all to re-crawl; or a year e.g. 2026)
-node bin/sheets-push.js# build analytics + push to the Google Sheet
+node bin/report.js     # → data/claims.xlsx (open in Excel/LibreOffice/Numbers/Sheets)
+
+node bin/sheets-push.js  # OPTIONAL: same workbook to a shared cloud Google Sheet (needs gws)
 ```
+
+The workbook is **formula-driven**: only raw facts are values (invoice lines, reimbursements, claim
+status, the policy table, two reference tabs). Category, coverage, expected, totals, per-claim checks
+and the breakdowns are universal spreadsheet formulas (`SUMIF`/`COUNTIF`/`IF`/`VLOOKUP`) that recompute
+in Excel, LibreOffice, Numbers or Google Sheets — edit a base cell and everything updates.
 
 - **Per-invoice category:** every invoice is tagged with its benefit category (from its provider) and
   the policy's expected co-insurance %, so a multi-invoice claim shows each line's own category.

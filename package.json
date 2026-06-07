@@ -12,7 +12,8 @@
     "allianz-gmail-pull": "bin/gmail-pull.js",
     "allianz-policy": "bin/policy.js",
     "allianz-crawl": "bin/crawl.js",
-    "allianz-push": "bin/sheets-push.js"
+    "allianz-report": "bin/report.js",
+    "allianz-push-google": "bin/sheets-push.js"
   },
   "scripts": {
     "onboard": "node bin/onboard.js",
@@ -24,10 +25,12 @@
     "gmail-pull": "node bin/gmail-pull.js",
     "policy": "node bin/policy.js",
     "crawl": "node bin/crawl.js",
-    "push": "node bin/sheets-push.js",
-    "track": "node bin/policy.js && node bin/crawl.js && node bin/sheets-push.js"
+    "report": "node bin/report.js",
+    "track": "node bin/policy.js && node bin/crawl.js && node bin/report.js",
+    "push-google": "node bin/sheets-push.js"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "playwright-core": "^1.60.0"
   }
 }
