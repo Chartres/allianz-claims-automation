@@ -52,21 +52,67 @@ $('#sampleFile').addEventListener('change', async (e) => {
 
 // ---------------- intake ----------------
 let rows = [];
+// index of every supported file the user has granted (folder, recursed, + drops), keyed by lowercased
+// relative path AND basename — so config.supplementaryDocs can reference "Child/opg.png" or "opg.png".
+let folderFiles = new Map();
 const detectProvider = text => (Object.entries(CFG.providers || {}).find(([, kws]) => kws.some(k => (text || '').toLowerCase().includes(k.toLowerCase()))) || [])[0] || CFG.defaultProvider;
 
+const baseName = f => ((f._relPath || f.name)).replace(/\\/g, '/').toLowerCase().split('/').pop();
+function addToIndex(files) {
+  for (const f of files) {
+    if (!SUP.test(f.name)) continue;
+    const rel = (f._relPath || f.name).replace(/\\/g, '/').toLowerCase();
+    folderFiles.set(rel, f);
+    if (!folderFiles.has(rel.split('/').pop())) folderFiles.set(rel.split('/').pop(), f); // basename (first wins)
+  }
+}
+// the set of filenames configured as supplementary docs — these are attachments, never invoices.
+function supDocNameSet(cfg) {
+  const s = new Set();
+  for (const byPatient of Object.values(cfg.supplementaryDocs || {}))
+    for (const spec of Object.values(byPatient))
+      for (const n of (Array.isArray(spec) ? spec : [spec]))
+        s.add(n.replace(/\\/g, '/').toLowerCase().split('/').pop());
+  return s;
+}
+// resolve a docType+patient to actual File objects from the granted folder.
+function resolveDocFiles(cfg, docType, patientKey) {
+  const spec = cfg.supplementaryDocs?.[docType]?.[patientKey];
+  if (!spec) return { found: [], missing: [docType] };
+  const names = Array.isArray(spec) ? spec : [spec];
+  const found = [], missing = [];
+  for (const n of names) {
+    const key = n.replace(/\\/g, '/').toLowerCase();
+    const f = folderFiles.get(key) || folderFiles.get(key.split('/').pop());
+    if (f) found.push(f); else missing.push(n);
+  }
+  return { found, missing };
+}
+
 async function ingest(files) {
+  addToIndex(files);                         // so attachments referenced from any row are findable
+  const supSet = supDocNameSet(CFG);
   for (const file of files) {
     if (!SUP.test(file.name)) continue;
+    if (supSet.has(baseName(file))) continue; // it's a supporting doc, not an invoice to file
     const text = await extractText(file);
     const parsed = parseFields(text, CFG);
-    const cls = classify(parsed, CFG, { docAvailable: () => true });
+    // a required doc counts as "available" only if its configured file is actually in the folder.
+    const docAvailable = (docType, patientKey) => resolveDocFiles(CFG, docType, patientKey).found.length > 0;
+    const cls = classify(parsed, CFG, { docAvailable });
+    // resolve the actual supporting-doc files this invoice needs (deterministic — config-driven).
+    const docFiles = [], missingDocs = [];
+    for (const need of (cls.type?.requiredDocs || [])) {
+      const { found, missing } = resolveDocFiles(CFG, need, parsed.patientName);
+      docFiles.push(...found); missingDocs.push(...missing);
+    }
     const flags = [];
     if (!text && isImage(file.name)) flags.push('photo — open & confirm (vision)');
     if (parsed.patientName === '?') flags.push('unknown patient');
     if (parsed.amount === '?') flags.push('no amount');
     if (!cls.typeKey) flags.push('unclassified');
-    if (cls.type?.requiredDocs?.length) flags.push('needs ' + cls.type.requiredDocs.join('+'));
-    rows.push({ file, parsed, cls, provider: detectProvider(text), flags, include: flags.length === 0 });
+    if (missingDocs.length) flags.push('missing ' + missingDocs.join(' + ') + ' — add to folder');
+    rows.push({ file, parsed, cls, provider: detectProvider(text), docFiles, flags, include: flags.length === 0 });
   }
   renderReview();
 }
@@ -79,7 +125,7 @@ function renderReview() {
       <input type="checkbox" data-i="${i}" ${r.include ? 'checked' : ''} ${r.flags.length ? 'disabled' : ''}>
       <div>
         <div class="meta"><b>${r.parsed.patientName}</b> · ${r.parsed.date} · ${r.parsed.amount} CZK · ${r.cls.typeKey || '?'}</div>
-        <div class="muted">${r.file.name}</div>
+        <div class="muted">${r.file.name}${r.docFiles?.length ? ` · 📎 ${r.docFiles.map(d => d.name).join(', ')}` : ''}</div>
         ${r.flags.length ? `<div class="flags">⚠ ${r.flags.join('; ')}</div>` : ''}
       </div>
     </div>`).join('');
@@ -109,7 +155,7 @@ $('#fileThese').addEventListener('click', async () => {
       provider: r.provider, date: r.parsed.date, amount: r.parsed.amount,
       category: r.cls.type.category, subtype: r.cls.type.subtype || null, reason: r.cls.type.reason || null,
     },
-    docs: [],
+    docs: await Promise.all((r.docFiles || []).map(async d => ({ name: d.name, b64: await toB64(d) }))),
   });
   status.textContent = 'filing… (watch the Allianz tab; it stops at the overview)';
   chrome.tabs.sendMessage(tab.id, { type: 'FILE_INVOICES', config: CFG, invoices }, (resp) => {
@@ -132,11 +178,19 @@ async function verifyPermission(handle) {
   if ((await handle.queryPermission(opts)) === 'granted') return true;
   return (await handle.requestPermission(opts)) === 'granted';
 }
+// recurse the granted folder, tagging each file with its relative path (so subfolder docs resolve).
+async function collectFiles(handle, prefix = '') {
+  const out = [];
+  for await (const entry of handle.values()) {
+    const rel = prefix ? prefix + '/' + entry.name : entry.name;
+    if (entry.kind === 'directory') out.push(...await collectFiles(entry, rel));
+    else if (entry.kind === 'file' && SUP.test(entry.name)) { const f = await entry.getFile(); try { f._relPath = rel; } catch {} out.push(f); }
+  }
+  return out;
+}
 async function scanFolder(handle) {
-  rows = [];
-  const files = [];
-  for await (const entry of handle.values()) if (entry.kind === 'file' && SUP.test(entry.name)) files.push(await entry.getFile());
-  await ingest(files);
+  rows = []; folderFiles = new Map();          // fresh scan → rebuild the file index from scratch
+  await ingest(await collectFiles(handle));     // ingest indexes attachments + reviews invoices
 }
 $('#pickFolder').addEventListener('click', async () => {
   const handle = await window.showDirectoryPicker().catch(() => null);
