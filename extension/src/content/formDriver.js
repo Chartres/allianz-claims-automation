@@ -138,13 +138,15 @@ export async function discover(cfg, sample) {
   const method = await readOptions('paymentMethod');
   await selectDropdown('paymentMethod', method.find(m => /bank/i.test(m)) || method[0]).catch(() => {});
   await selectDropdown('paymentCurrency', new RegExp(P.currencyMatch || '^CZK')).catch(() => {});
-  document.body.click(); await sleep(500);
+  document.body.click();
+  await waitFor(() => document.querySelector('nx-radio') || /Saved bank/i.test(document.body.innerText), { timeout: 5000 });
+  await sleep(600);
   const t = document.body.innerText, i = t.indexOf('Saved bank');
   const seg = i < 0 ? '' : t.slice(i, t.indexOf('CREATE NEW') >= 0 ? t.indexOf('CREATE NEW') : undefined);
   const banks = [...seg.matchAll(/(\d{4})\s+([A-Z]{3})\b/g)].map(m => ({ last4: m[1], country: m[2], currency: COUNTRY_CURRENCY[m[2]] || null }));
   let patients = [], countries = [];
   if (sample) {
-    if (banks[0]) [...document.querySelectorAll('nx-radio')].find(x => (x.innerText || '').includes(banks[0].last4))?.click();
+    if (banks[0]) await selectRadio(banks[0].last4).catch(() => {});
     await clickByText(/^continue$/i).catch(() => {}); await sleep(1500);
     await clickByText(/add (another )?invoice/i).catch(() => {}); await sleep(1500);
     const file = new File([sample.bytes], sample.name, { type: 'application/pdf' });
