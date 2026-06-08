@@ -26,7 +26,9 @@ These need a logged-in portal + the loaded extension to *verify/tune* (I can't, 
 2. **Form-driver** — confirm Angular change-detection fires for dispatched dropdown/input events.
 3. **Crawl** — tune navigation timing / SW-lifetime chunking on a real history.
 4. **Discovery** — confirm the live reads.
-5. **Image auto-OCR** (optional) — `tesseract.js` offscreen; images already work via the vision fallback.
+5. **Image auto-OCR** — `tesseract.js` in an offscreen document: **built** (OCR validated offline on a real invoice image → correct fields); the offscreen/asset-path wiring is pending live load. HEIC + OCR failures fall back to the vision path.
+
+**Every architecture item and build-order step now has an implementation.** The only outstanding work is the live validation in items 1–4 above (OTP login + loaded extension).
 
 ## How to validate (you, once)
 1. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/`.
