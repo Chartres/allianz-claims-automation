@@ -14,7 +14,41 @@ const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
 const SUP = /\.(pdf|png|jpe?g|tiff?|bmp|gif|webp|heic|heif)$/i;
 let CFG = {};
 
-chrome.storage.local.get('config').then(({ config }) => { CFG = config || {}; });
+// seed config from the bundled default on first run
+chrome.storage.local.get('config').then(async ({ config }) => {
+  if (config) { CFG = config; return; }
+  try { CFG = await fetch(chrome.runtime.getURL('config.default.json')).then(r => r.json()); await chrome.storage.local.set({ config: CFG }); } catch { CFG = {}; }
+});
+
+// ---------------- onboarding: discover settings from the portal ----------------
+function applyDiscovery(found) {
+  const P = CFG.portal = CFG.portal || {};
+  if (found.payee?.length) P.payee = found.payee.includes('Insured member') ? 'Insured member' : found.payee[0];
+  if (found.method?.length) P.paymentMethod = found.method.find(m => /bank/i.test(m)) || found.method[0];
+  if (found.banks?.length) { const b = found.banks.find(x => x.country === 'CZE') || found.banks[0]; P.bankAccountMatch = b.last4; if (b.currency) P.currencyMatch = '^' + b.currency; }
+  const cz = (found.countries || []).find(c => /czech/i.test(c)); if (cz) P.countryMatch = cz;
+  if (found.patients?.length) {
+    const pats = {};
+    for (const label of found.patients) { const key = label.split(/\s+/)[0]; pats[key] = { portalLabel: label, aliases: [label.replace(/\s*\(\d{4}\)\s*$/, '').trim()] }; }
+    CFG.patients = pats;
+  }
+}
+$('#setup').addEventListener('click', () => $('#sampleFile').click());
+$('#sampleFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; const s = $('#setupStatus');
+  const [tab] = await chrome.tabs.query({ url: 'https://my.allianzcare.com/*' });
+  if (!tab) { s.textContent = 'Open & log into Allianz first.'; return; }
+  s.textContent = 'reading the portal…';
+  const payload = { type: 'DISCOVER', config: CFG };
+  if (file) { payload.sampleB64 = await toB64(file); payload.sampleName = file.name; }
+  chrome.tabs.sendMessage(tab.id, payload, async (resp) => {
+    if (chrome.runtime.lastError || !resp?.ok) { s.textContent = 'Failed: ' + (chrome.runtime.lastError?.message || resp?.error || '?'); return; }
+    applyDiscovery(resp.found);
+    await chrome.storage.local.set({ config: CFG });
+    const f = resp.found;
+    s.textContent = `✓ Saved — payee · ${(f.banks || []).length} account(s) · ${(f.patients || []).length} family member(s). Fine-tune in Options.`;
+  });
+});
 
 // ---------------- intake ----------------
 let rows = [];

@@ -44,6 +44,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, send) => {
         send({ ok: true, claim: await m.submitClaim() });
         return;
       }
+      if (msg?.type === 'DISCOVER') {
+        const m = await driver();
+        const sample = msg.sampleB64 ? { bytes: b64ToBytes(msg.sampleB64), name: msg.sampleName || 'sample.pdf' } : null;
+        send({ ok: true, found: await m.discover(msg.config || {}, sample) });
+        return;
+      }
     } catch (e) { send({ ok: false, error: e.message }); }
   })();
   return true; // async response

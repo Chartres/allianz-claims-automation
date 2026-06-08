@@ -102,6 +102,46 @@ export async function addInvoice(cfg, inv) {
 
 export async function saveInvoice() { await clickByText(/save invoice/i); await sleep(2000); }
 
+// Read an nx-dropdown's option texts (open → collect → close).
+async function readOptions(id) {
+  const dd = document.getElementById(id); if (!dd) return [];
+  dd.click();
+  await waitFor(() => document.querySelectorAll('[role=option]').length, { timeout: 5000 });
+  const o = [...document.querySelectorAll('[role=option]')].map(e => (e.innerText || '').trim());
+  document.body.click(); await sleep(300);
+  return o;
+}
+
+// Onboarding discovery — read settings from the live form. `sample` (optional {bytes,name}) is
+// uploaded to reveal the patient + country dropdowns. Ported from the CLI's bin/discover.js. Does NOT
+// submit; leaves a draft (harmless). STATUS: pending live validation.
+const COUNTRY_CURRENCY = { CZE: 'CZK', SVK: 'EUR', LTU: 'EUR', DEU: 'EUR', AUT: 'EUR', FRA: 'EUR', IRL: 'EUR', ESP: 'EUR', ITA: 'EUR', NLD: 'EUR', PRT: 'EUR', GBR: 'GBP', USA: 'USD', POL: 'PLN', HUN: 'HUF', CHE: 'CHF', CAN: 'CAD', AUS: 'AUD' };
+export async function discover(cfg, sample) {
+  const P = cfg.portal || {};
+  await clickByText(/submit a claim/i); await sleep(1500);
+  const payee = await readOptions('payee');
+  await selectDropdown('payee', payee.includes('Insured member') ? 'Insured member' : payee[0]).catch(() => {});
+  const method = await readOptions('paymentMethod');
+  await selectDropdown('paymentMethod', method.find(m => /bank/i.test(m)) || method[0]).catch(() => {});
+  await selectDropdown('paymentCurrency', new RegExp(P.currencyMatch || '^CZK')).catch(() => {});
+  document.body.click(); await sleep(500);
+  const t = document.body.innerText, i = t.indexOf('Saved bank');
+  const seg = i < 0 ? '' : t.slice(i, t.indexOf('CREATE NEW') >= 0 ? t.indexOf('CREATE NEW') : undefined);
+  const banks = [...seg.matchAll(/(\d{4})\s+([A-Z]{3})\b/g)].map(m => ({ last4: m[1], country: m[2], currency: COUNTRY_CURRENCY[m[2]] || null }));
+  let patients = [], countries = [];
+  if (sample) {
+    if (banks[0]) [...document.querySelectorAll('nx-radio')].find(x => (x.innerText || '').includes(banks[0].last4))?.click();
+    await clickByText(/^continue$/i).catch(() => {}); await sleep(1500);
+    await clickByText(/add (another )?invoice/i).catch(() => {}); await sleep(1500);
+    const file = new File([sample.bytes], sample.name, { type: 'application/pdf' });
+    for (const tgt of findDropTargets()) { try { fireDrop(tgt, file); } catch {} }
+    await waitFor(() => document.getElementById('patientName'), { timeout: 8000 });
+    patients = await readOptions('patientName');
+    countries = await readOptions('country');
+  }
+  return { payee, method, banks, patients, countries };
+}
+
 export async function submitClaim() {
   await clickByText(/^submit claim$/i); await sleep(2000);
   await clickByText(/agree and proceed/i).catch(() => {}); await sleep(3000);

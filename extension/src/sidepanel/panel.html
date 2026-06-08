@@ -32,6 +32,12 @@
 <body>
   <h1>Allianz Claims Helper</h1>
 
+  <div class="bar">
+    <button id="setup" title="Read payee/bank/country/family from the logged-in portal (pick a sample invoice)">⚙ Set up from portal</button>
+    <span id="setupStatus" class="muted"></span>
+  </div>
+  <input id="sampleFile" type="file" accept=".pdf,image/*" hidden>
+
   <h2>File invoices</h2>
   <div class="bar">
     <button id="pickFolder">📁 Choose folder</button>
