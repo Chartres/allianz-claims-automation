@@ -65,10 +65,29 @@ async function crawl(cfg) {
   return { ok: true, count: have.size };
 }
 
+async function ensureOffscreen() {
+  if (await chrome.offscreen?.hasDocument?.()) return;
+  await chrome.offscreen.createDocument({
+    url: 'src/offscreen/offscreen.html',
+    reasons: ['WORKERS'],
+    justification: 'OCR invoice photos with tesseract.js (WASM).',
+  });
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type === 'CRAWL') {
     chrome.storage.local.get('config').then(({ config }) => crawl(config || {}))
       .then(sendResponse).catch(e => sendResponse({ ok: false, error: e.message }));
+    return true; // async
+  }
+  if (msg?.type === 'OCR_IMAGE') {
+    (async () => {
+      try {
+        await ensureOffscreen();
+        const dataUrl = `data:${msg.mime || 'image/png'};base64,${msg.b64}`;
+        chrome.runtime.sendMessage({ type: 'OCR_OFFSCREEN', dataUrl }, (r) => sendResponse(r || { ok: false, error: 'no offscreen response' }));
+      } catch (e) { sendResponse({ ok: false, error: e.message }); }
+    })();
     return true; // async
   }
 });

@@ -28,10 +28,21 @@ export async function extractPdfText(arrayBuffer) {
 
 export function isImage(name) { return IMG.test(name); }
 
-// Returns extracted text, or '' for images (→ vision fallback) / unreadable PDFs.
+async function fileToB64(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  let s = ''; for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+// Returns extracted text. PDFs → pdf.js. Images → tesseract.js via the offscreen document (SW relays).
+// '' (→ vision fallback) for HEIC, OCR failures, or unreadable PDFs.
 export async function extractText(file) {
   try {
     if (/\.pdf$/i.test(file.name)) return await extractPdfText(await file.arrayBuffer());
-  } catch { /* scanned/broken PDF → empty */ }
+    if (isImage(file.name) && !/\.(heic|heif)$/i.test(file.name)) {
+      const resp = await chrome.runtime.sendMessage({ type: 'OCR_IMAGE', b64: await fileToB64(file), mime: file.type || 'image/png' });
+      if (resp?.ok && resp.text?.trim()) return resp.text;
+    }
+  } catch { /* fall through to vision fallback */ }
   return '';
 }
