@@ -27,7 +27,8 @@ async function clickByText(re, { timeout = 10000 } = {}) {
 async function selectDropdown(id, matcher) {
   const dd = await waitFor(() => document.getElementById(id), { timeout: 10000 });
   if (!dd) throw new Error('dropdown #' + id + ' not found');
-  dd.click();
+  document.body.click(); await sleep(200);                 // close any lingering overlay first
+  dd.click(); await sleep(150);
   const opts = await waitFor(() => { const o = [...document.querySelectorAll('[role=option]')]; return o.length ? o : null; }, { timeout: 6000 }) || [];
   const re = matcher instanceof RegExp ? matcher : null;
   const opt = opts.find(o => { const t = (o.innerText || '').trim(); return re ? re.test(t) : t === matcher; });
@@ -51,6 +52,18 @@ async function fillInput(id, value) {
   await sleep(200);
 }
 
+// Select an nx-radio (bank account, treatment subtype, …) by its label text — click the inner
+// input[type=radio] so Angular registers it (the host element's click doesn't toggle it).
+async function selectRadio(text) {
+  const radio = await waitFor(() => [...document.querySelectorAll('nx-radio')]
+    .find(r => { const t = (r.innerText || '').trim(); return t === text || t.includes(text); }), { timeout: 6000 });
+  if (!radio) throw new Error('radio not found: ' + text);
+  // click the label (not just the input) — Angular needs the label's handler to fire dependent
+  // updates (e.g. the subtype radio populating the reason dropdown); input-only check isn't enough.
+  (radio.querySelector('label') || radio.querySelector('input[type=radio]') || radio).click();
+  await sleep(400);
+}
+
 // ---- claim flow (mirrors lib/portal.js) ----
 export async function startClaim(cfg) {
   const P = cfg.portal;
@@ -60,8 +73,7 @@ export async function startClaim(cfg) {
   await selectDropdown('paymentMethod', P.paymentMethod || 'Bank Transfer');
   await selectDropdown('paymentCurrency', new RegExp(P.currencyMatch || '^CZK'));
   document.body.click();
-  const bank = await waitFor(() => [...document.querySelectorAll('nx-radio')].find(r => (r.innerText || '').includes(P.bankAccountMatch)), { timeout: 6000 });
-  if (bank) bank.click();
+  await selectRadio(P.bankAccountMatch).catch(() => {}); // inner input toggles Angular's radio
   await sleep(400);
   await clickByText(/^continue$/i);
   await sleep(1800);
@@ -84,15 +96,17 @@ export async function addInvoice(cfg, inv) {
   await fillInput('invoiceDate', inv.fields.date);
   await fillInput('treatmentDate-0', inv.fields.date);
   await selectDropdown('treatmentMainCategory-0', inv.fields.category);
-  if (inv.fields.subtype) { await clickByText(new RegExp('^' + inv.fields.subtype + '$', 'i')).catch(() => {}); await sleep(800); }
+  if (inv.fields.subtype) { await selectRadio(inv.fields.subtype).catch(() => {}); await sleep(800); } // subtype is an nx-radio
   // supplementary docs → file inputs 1,2,…
   let idx = 1;
   for (const d of (inv.docs || [])) {
     const fi = document.querySelectorAll('input[type=file]')[idx];
     if (fi) { for (const t of [fi, fi.parentElement]) try { fireDrop(t, new File([d.bytes], d.name)); } catch {} ; idx++; await sleep(2000); }
   }
-  if (document.getElementById('masterDiagnosisCode-0') && inv.fields.reason)
-    await selectDropdown('masterDiagnosisCode-0', inv.fields.reason).catch(() => {});
+  if (inv.fields.reason) {
+    const hasReason = await waitFor(() => document.getElementById('masterDiagnosisCode-0'), { timeout: 5000 }); // appears after subtype
+    if (hasReason) await selectDropdown('masterDiagnosisCode-0', inv.fields.reason).catch(() => {});
+  }
   await fillInput('amount-0', inv.fields.amount);
   await sleep(800);
   const invalid = [...document.querySelectorAll('.ng-invalid')].map(e => e.getAttribute('formcontrolname')).filter(Boolean);
