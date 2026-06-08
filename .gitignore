@@ -9,6 +9,9 @@ confirmations/
 intake/*
 !intake/.gitkeep
 *.png
+# generated app icons (geometric, no personal data)
+!extension/icons/
+!extension/icons/*.png
 
 # scratch
 archive/

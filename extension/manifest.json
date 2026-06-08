@@ -5,9 +5,14 @@
   "description": "File Allianz Care claims and track reimbursements from your logged-in tab. No cloud, no Google account.",
   "permissions": ["storage", "scripting", "activeTab", "sidePanel", "offscreen", "alarms", "downloads"],
   "host_permissions": ["https://my.allianzcare.com/*"],
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" },
   "background": { "service_worker": "src/background/service-worker.js", "type": "module" },
   "side_panel": { "default_path": "src/sidepanel/panel.html" },
-  "action": { "default_title": "Allianz Claims Helper" },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "action": {
+    "default_title": "Allianz Claims Helper",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
   "content_scripts": [
     {
       "matches": ["https://my.allianzcare.com/*"],
