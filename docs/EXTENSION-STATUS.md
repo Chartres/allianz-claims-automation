@@ -14,6 +14,15 @@ Honest state of the MV3 port. The brief is in `EXTENSION-GOAL.md`.
 - **Intake UI** (`src/sidepanel/`): File System Access "pick a folder, persist handle (IndexedDB), rescan on open" (primary B) + drop zone (fallback A) + parse/classify → review list with flags → "File selected" messages the portal tab's content script.
 - **PDF text extraction** (`src/lib/extract.js` + vendored `pdf.js`): line-reconstruction from positioned text items → `parseFields` — **validated offline on a real invoice** (faktura/patient/date/amount all correct).
 - **Crawl parsers** (`src/content/crawl.js`): `parseClaimsList` + `parseClaimDetail` ported from the proven CLI regexes — **validated offline** (invoices/reimbursements/decimals/flags).
+- **Deterministic supporting-doc resolution** (`src/sidepanel/panel.js`): the granted folder is
+  indexed recursively (by relative path + basename); each invoice's `treatmentType.requiredDocs`
+  resolve via `config.supplementaryDocs[docType][patient]` to actual files, which are attached
+  (b64) in `FILE_INVOICES` → `formDriver.addInvoice` uploads them. Files listed as supplementary
+  docs are excluded from the invoice list; invoices whose required docs are missing are flagged
+  and blocked (never filed blind). `classify`'s `docAvailable` now reflects real folder presence.
+- **Distribution documented** (`docs/EXTENSION-INSTALL.md`): load-unpacked (dev/personal) and
+  Chrome Web Store **Unlisted** (link-only, no OAuth review) steps, permissions justification,
+  privacy/data-handling notes, and why self-hosted `.crx` is blocked.
 
 ## 🧩 Built end-to-end (all 4 steps) — remaining work is LIVE VALIDATION, not coding
 Everything is now implemented and committed:
