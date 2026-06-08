@@ -1,13 +1,50 @@
-// Content script on my.allianzcare.com — drives the NX/Angular claim form from the logged-in tab.
-// Placeholder until the upload spike is confirmed on the live form (BUILD ORDER step 1→2). The proven
-// synthetic-drag-drop upload lives in dropUpload.js; once validated, the payee/invoice form-driver
-// (open nx-dropdowns, click role=option, set date/amount via input events, drop the file, submit)
-// gets wired here and exposed to the side panel via chrome.runtime messaging.
+// Content script on my.allianzcare.com. Bridges the side panel ↔ the page: pings login state and runs
+// the form-driver to file invoices in the logged-in tab. (Classic content script; loads the ESM
+// form-driver via dynamic import — modules are declared web_accessible_resources.)
+//
+// STATUS: filing path pending live validation (the gating upload spike needs an OTP login).
 
-(() => {
-  // announce presence so the side panel / service worker know the portal tab is available
-  chrome.runtime?.onMessage?.addListener((msg, _s, send) => {
-    if (msg?.type === 'PING_PORTAL') send({ ok: true, url: location.href, loggedIn: !/login|signin/i.test(location.href) });
-    return true;
-  });
-})();
+const url = (p) => chrome.runtime.getURL(p);
+let fd = null;
+async function driver() { if (!fd) fd = await import(url('src/content/formDriver.js')); return fd; }
+
+function b64ToBytes(b64) {
+  const bin = atob(b64); const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+
+chrome.runtime.onMessage.addListener((msg, _sender, send) => {
+  (async () => {
+    try {
+      if (msg?.type === 'PING_PORTAL') {
+        send({ ok: true, url: location.href, loggedIn: !/login|signin/i.test(location.href) });
+        return;
+      }
+      if (msg?.type === 'FILE_INVOICES') {
+        const m = await driver();
+        await m.startClaim(msg.config);
+        const results = [];
+        for (const inv of msg.invoices) {
+          const built = {
+            fields: inv.fields,
+            invoiceName: inv.invoiceName,
+            invoiceBytes: b64ToBytes(inv.invoiceB64),
+            docs: (inv.docs || []).map(d => ({ name: d.name, bytes: b64ToBytes(d.b64) })),
+          };
+          const r = await m.addInvoice(msg.config, built);
+          if (!r.saveDisabled) { await m.saveInvoice(); results.push({ id: inv.meta?.id, ok: true }); }
+          else results.push({ id: inv.meta?.id, ok: false, invalid: r.invalid });
+        }
+        send({ ok: true, results, note: 'Stopped at overview — review, then send SUBMIT_CLAIM to submit.' });
+        return;
+      }
+      if (msg?.type === 'SUBMIT_CLAIM') {
+        const m = await driver();
+        send({ ok: true, claim: await m.submitClaim() });
+        return;
+      }
+    } catch (e) { send({ ok: false, error: e.message }); }
+  })();
+  return true; // async response
+});
