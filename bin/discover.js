@@ -15,7 +15,7 @@ const path = require('path');
 const readline = require('readline');
 const C = require('../lib/config');
 const portal = require('../lib/portal');
-const { text: pdfText } = require('../lib/pdf');
+const { text: pdfText, supported } = require('../lib/pdf');
 
 const cfg = C.load();
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -24,8 +24,8 @@ const ask = (q, def) => new Promise(r => rl.question(`${q}${def ? ` [${def}]` : 
 function findSample() {
   if (process.argv[2] && fs.existsSync(process.argv[2])) return process.argv[2];
   const intake = path.join(cfg._root, 'intake');
-  const pdf = fs.existsSync(intake) && fs.readdirSync(intake).find(f => f.toLowerCase().endsWith('.pdf'));
-  return pdf ? path.join(intake, pdf) : null;
+  const hit = fs.existsSync(intake) && fs.readdirSync(intake).find(f => supported(f) && f !== '_processed');
+  return hit ? path.join(intake, hit) : null;
 }
 
 (async () => {

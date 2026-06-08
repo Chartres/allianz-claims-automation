@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 const C = require('../lib/config');
-const { parse } = require('../lib/pdf');
+const { parse, supported } = require('../lib/pdf');
 const { classify } = require('../lib/classify');
 const portal = require('../lib/portal');
 
@@ -35,7 +35,7 @@ function indexConfirmations() {
   const byVs = {};
   if (!fs.existsSync(CONF)) return byVs;
   for (const f of fs.readdirSync(CONF)) {
-    if (!f.toLowerCase().endsWith('.pdf')) continue;
+    if (!supported(path.join(CONF, f))) continue;
     const p = parse(path.join(CONF, f), cfg);
     if (p.vs) byVs[p.vs] = path.join(CONF, f);
   }
@@ -45,7 +45,7 @@ function indexConfirmations() {
 function buildPlan() {
   if (!fs.existsSync(INTAKE)) fs.mkdirSync(INTAKE, { recursive: true });
   const confByVs = indexConfirmations();
-  const files = fs.readdirSync(INTAKE).filter(f => f.toLowerCase().endsWith('.pdf'));
+  const files = fs.readdirSync(INTAKE).filter(f => supported(f) && f !== '_processed');
   const plan = [];
   for (const f of files) {
     const full = path.join(INTAKE, f);
@@ -125,7 +125,7 @@ async function fileClaim(ready, submit) {
 
 (async () => {
   const plan = buildPlan();
-  if (!plan.length) { console.log(`No PDFs in ${INTAKE}. Drop invoice PDFs there and re-run.`); return; }
+  if (!plan.length) { console.log(`No invoices in ${INTAKE}. Drop invoice PDFs or photos (PDF/JPG/PNG/HEIC…) there and re-run.`); return; }
   const ready = printPlan(plan);
   if (MODE === 'dry') { console.log('\n(dry run — add --file to fill the portal, --submit to submit)'); return; }
   if (!ready.length) { console.log('\nNothing ready to file.'); return; }

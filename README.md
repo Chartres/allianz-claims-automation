@@ -5,9 +5,10 @@
 > to read and drive end-to-end. (Optional: connect the **Context7** MCP so the agent pulls current
 > docs for `playwright-core` / `exceljs`.)
 
-Drop invoice PDFs in a folder → they get parsed, classified by treatment type, matched to the
-right patient and supplementary documents (dental plan, X-rays, prescription, …), and filed as
-claims on the [Allianz Care MyHealth portal](https://my.allianzcare.com). Everything family- and
+Drop invoice **PDFs or photos** (JPG/PNG/HEIC…) in a folder → they get parsed (PDFs via `pdftotext`,
+images via `tesseract` OCR), classified by treatment type, matched to the right patient and
+supplementary documents (dental plan, X-rays, prescription, …), and filed as claims on the
+[Allianz Care MyHealth portal](https://my.allianzcare.com). Everything family- and
 treatment-specific lives in `config.json`, so anyone can use it with their own names and documents.
 
 ## How it works
@@ -31,6 +32,7 @@ Everything you need for the core tool is a single `brew`/`npm` install with **no
 |---|---|---|
 | **Core** (drive the portal, build the Excel tracker) | `brew install node` · Google Chrome · `npm install` | none |
 | **Filing from PDFs** (parse invoices) | `brew install poppler` (`pdftotext`) | none |
+| **Filing from photos/images** (OCR JPG/PNG/HEIC…) | `brew install tesseract` (+ Czech: drop `ces.traineddata` into `$(brew --prefix)/share/tessdata`) | none |
 | *Optional:* email intake + `_todo`→`_hotovo` labels | `brew install googleworkspace-cli` (`gws`) | Google OAuth |
 | *Optional:* shared cloud **Google** Sheet instead of local Excel | `gws` (as above) | Google OAuth |
 
