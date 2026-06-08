@@ -6,12 +6,12 @@ import { extractText, isImage } from '../lib/extract.js';
 import { parseFields } from '../lib/parse.js';
 import { classify } from '../lib/classify.js';
 import { idbGet, idbSet } from '../lib/idb.js';
+import { SUP, baseName, indexFiles, supDocNameSet, resolveDocFiles } from '../lib/docs.js';
 
 const $ = s => document.querySelector(s);
 const fmt = n => Math.round(n).toLocaleString();
 const uniq = a => [...new Set(a)].filter(Boolean);
 const sum = (a, f) => a.reduce((s, x) => s + f(x), 0);
-const SUP = /\.(pdf|png|jpe?g|tiff?|bmp|gif|webp|heic|heif)$/i;
 let CFG = {};
 
 // seed config from the bundled default on first run
@@ -57,40 +57,8 @@ let rows = [];
 let folderFiles = new Map();
 const detectProvider = text => (Object.entries(CFG.providers || {}).find(([, kws]) => kws.some(k => (text || '').toLowerCase().includes(k.toLowerCase()))) || [])[0] || CFG.defaultProvider;
 
-const baseName = f => ((f._relPath || f.name)).replace(/\\/g, '/').toLowerCase().split('/').pop();
-function addToIndex(files) {
-  for (const f of files) {
-    if (!SUP.test(f.name)) continue;
-    const rel = (f._relPath || f.name).replace(/\\/g, '/').toLowerCase();
-    folderFiles.set(rel, f);
-    if (!folderFiles.has(rel.split('/').pop())) folderFiles.set(rel.split('/').pop(), f); // basename (first wins)
-  }
-}
-// the set of filenames configured as supplementary docs — these are attachments, never invoices.
-function supDocNameSet(cfg) {
-  const s = new Set();
-  for (const byPatient of Object.values(cfg.supplementaryDocs || {}))
-    for (const spec of Object.values(byPatient))
-      for (const n of (Array.isArray(spec) ? spec : [spec]))
-        s.add(n.replace(/\\/g, '/').toLowerCase().split('/').pop());
-  return s;
-}
-// resolve a docType+patient to actual File objects from the granted folder.
-function resolveDocFiles(cfg, docType, patientKey) {
-  const spec = cfg.supplementaryDocs?.[docType]?.[patientKey];
-  if (!spec) return { found: [], missing: [docType] };
-  const names = Array.isArray(spec) ? spec : [spec];
-  const found = [], missing = [];
-  for (const n of names) {
-    const key = n.replace(/\\/g, '/').toLowerCase();
-    const f = folderFiles.get(key) || folderFiles.get(key.split('/').pop());
-    if (f) found.push(f); else missing.push(n);
-  }
-  return { found, missing };
-}
-
 async function ingest(files) {
-  addToIndex(files);                         // so attachments referenced from any row are findable
+  indexFiles(folderFiles, files);            // so attachments referenced from any row are findable
   const supSet = supDocNameSet(CFG);
   for (const file of files) {
     if (!SUP.test(file.name)) continue;
@@ -98,12 +66,12 @@ async function ingest(files) {
     const text = await extractText(file);
     const parsed = parseFields(text, CFG);
     // a required doc counts as "available" only if its configured file is actually in the folder.
-    const docAvailable = (docType, patientKey) => resolveDocFiles(CFG, docType, patientKey).found.length > 0;
+    const docAvailable = (docType, patientKey) => resolveDocFiles(folderFiles, CFG, docType, patientKey).found.length > 0;
     const cls = classify(parsed, CFG, { docAvailable });
     // resolve the actual supporting-doc files this invoice needs (deterministic — config-driven).
     const docFiles = [], missingDocs = [];
     for (const need of (cls.type?.requiredDocs || [])) {
-      const { found, missing } = resolveDocFiles(CFG, need, parsed.patientName);
+      const { found, missing } = resolveDocFiles(folderFiles, CFG, need, parsed.patientName);
       docFiles.push(...found); missingDocs.push(...missing);
     }
     const flags = [];
