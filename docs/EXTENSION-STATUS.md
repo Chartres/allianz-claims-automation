@@ -15,12 +15,23 @@ Honest state of the MV3 port. The brief is in `EXTENSION-GOAL.md`.
 - **PDF text extraction** (`src/lib/extract.js` + vendored `pdf.js`): line-reconstruction from positioned text items → `parseFields` — **validated offline on a real invoice** (faktura/patient/date/amount all correct).
 - **Crawl parsers** (`src/content/crawl.js`): `parseClaimsList` + `parseClaimDetail` ported from the proven CLI regexes — **validated offline** (invoices/reimbursements/decimals/flags).
 
-## ⛔ Pending — genuinely needs an OTP login + the loaded extension (can't be done headless)
-1. **GATE: upload spike on the real form** — confirm the synthetic drop registers on the actual NX dropzone (general mechanism already proven). Run after logging in.
-2. **Form-driver live validation** — confirm Angular change-detection fires for the dispatched dropdown/input events; tweak if needed.
-3. **Crawl orchestration** — the SW drives the portal tab across navigations and chunks work around the ~30s/5-min service-worker limit (`chrome.alarms`/offscreen), checkpointing to `chrome.storage`. (Parsers are done; this is the live-only glue.)
-4. **Onboarding discovery** — read payee/bank+currency/country/family from the logged-in form → confirm → `chrome.storage` (port of CLI `bin/discover.js`).
-5. **Image auto-OCR** (optional) — `tesseract.js` in an offscreen document. Images already work via the **vision fallback** (agent reads with the user's OK), so this is an enhancement.
+## 🧩 Built end-to-end (all 4 steps) — remaining work is LIVE VALIDATION, not coding
+Everything is now implemented and committed:
+- **Crawl orchestration** (`src/background/service-worker.js`): `CRAWL` drives the portal tab via `chrome.scripting`, parses with `crawl.js`, checkpoints per claim to `chrome.storage` (resumes by skipping finalized claims).
+- **Onboarding discovery** (`formDriver.discover` + `DISCOVER` bridge + panel "⚙ Set up from portal"): reads payee/method/bank+currency/country/family from the live form; bundled `config.default.json` seeds a working config.
+- **Filing flow**, **intake**, **dashboard/CSV**, **PDF parsing**, **upload helper** — all present.
+
+These need a logged-in portal + the loaded extension to *verify/tune* (I can't, solo):
+1. **GATE: upload spike** — confirm the synthetic drop registers on the real NX dropzone (mechanism proven headless).
+2. **Form-driver** — confirm Angular change-detection fires for dispatched dropdown/input events.
+3. **Crawl** — tune navigation timing / SW-lifetime chunking on a real history.
+4. **Discovery** — confirm the live reads.
+5. **Image auto-OCR** (optional) — `tesseract.js` offscreen; images already work via the vision fallback.
+
+## How to validate (you, once)
+1. `chrome://extensions` → Developer mode → **Load unpacked** → `extension/`.
+2. **Offline check (no login):** side panel → **Import CSV** `data/claims-extension.csv` (dashboard populates); drop a PDF in "File invoices" (it parses + classifies in the review list).
+3. **Live:** log into Allianz in a tab → **⚙ Set up from portal** (pick a sample invoice) → then **File selected** on a review row (watch it drive the form + stop at the overview), and **↻ Refresh** to crawl. Report anything that misbehaves and it's a quick fix.
 
 ## How to pick it up
 1. **See the tracker now (no portal):** `chrome://extensions` → Developer mode → **Load unpacked** → `extension/` → open the side panel → **Import CSV** → `data/claims-extension.csv` (generated from your last crawl). Dashboard should populate.
