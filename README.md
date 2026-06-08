@@ -4,6 +4,11 @@
 > *"set this up for me"* — the README + `bin/onboard.js`/`bin/discover.js` are designed for an agent
 > to read and drive end-to-end. (Optional: connect the **Context7** MCP so the agent pulls current
 > docs for `playwright-core` / `exceljs`.)
+>
+> **Vision fallback for photos:** if `tesseract` can't read a photo, `intake.js` flags it as
+> *"needs agent vision"*. The driving agent should — **with the user's OK** — open the image, read the
+> fields, and drop a sidecar `intake/<image>.json` (`{patient, date "DD/MM/YYYY", amount, provider,
+> treatmentType}`); the tool then uses that instead of OCR. No OCR engine or API key required for this path.
 
 Drop invoice **PDFs or photos** (JPG/PNG/HEIC…) in a folder → they get parsed (PDFs via `pdftotext`,
 images via `tesseract` OCR), classified by treatment type, matched to the right patient and

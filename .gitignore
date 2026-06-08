@@ -6,8 +6,8 @@ config.json
 chrome-profile/
 data/
 confirmations/
-intake/*.pdf
-intake/_processed/
+intake/*
+!intake/.gitkeep
 *.png
 
 # scratch

@@ -50,13 +50,38 @@ function buildPlan() {
   for (const f of files) {
     const full = path.join(INTAKE, f);
     const parsed = parse(full, cfg);
+    const isImage = /\.(png|jpe?g|tiff?|bmp|gif|webp|heic|heif)$/i.test(f);
+
+    // Vision fallback: if the agent (or you) dropped a sidecar `<file>.json`, trust it over OCR.
+    // Shape: { patient, date "DD/MM/YYYY", amount, provider, treatmentType, vs? }
+    let forced = null;
+    const scf = full + '.json';
+    if (fs.existsSync(scf)) {
+      try {
+        const s = JSON.parse(fs.readFileSync(scf, 'utf8'));
+        if (s.patient) { const k = cfg.patients[s.patient] ? s.patient : (C.matchPatient(cfg, s.patient) || {}).key; if (k) parsed.patientName = k; }
+        if (s.date) parsed.date = s.date;
+        if (s.amount != null) parsed.amount = String(s.amount);
+        if (s.provider) parsed.provider_hint = s.provider;
+        if (s.vs) parsed.vs = s.vs;
+        forced = s.treatmentType || null;
+        parsed.error = null;
+        parsed._sidecar = true;
+      } catch { /* malformed sidecar — fall through to OCR result */ }
+    }
+
     const issues = [];
     if (parsed.error) issues.push(parsed.error);
     if (parsed.patientName === '?') issues.push('unknown patient');
     if (parsed.amount === '?') issues.push('no amount');
-    const cls = classify(parsed, cfg);
+    const cls = classify(parsed, cfg, forced);
     if (!cls.typeKey) issues.push('unclassified treatment');
     cls.missingDocs.forEach(d => issues.push(`missing ${d}`));
+
+    // AI-first fallback: an image we couldn't read and that has no sidecar yet → one clear instruction
+    if (isImage && !parsed._sidecar && (parsed.error || parsed.patientName === '?' || parsed.amount === '?'))
+      issues.length = 0, issues.push(`needs agent vision — view this image and write ${f}.json {patient, date "DD/MM/YYYY", amount, provider, treatmentType}`);
+
     const patient = cfg.patients[parsed.patientName];
     const conf = parsed.vs && confByVs[parsed.vs] ? confByVs[parsed.vs] : null;
     plan.push({ file: f, full, parsed, cls, patient, conf, issues });
@@ -95,7 +120,7 @@ async function fileClaim(ready, submit) {
     const inv = {
       invoiceFiles: [e.full, ...(e.conf ? [e.conf] : [])],
       patientLabel: e.patient.portalLabel,
-      provider: detectProvider(e.parsed.raw || ''),
+      provider: e.parsed.provider_hint || detectProvider(e.parsed.raw || ''),
       date: e.parsed.date,
       amount: e.parsed.amount,
       category: e.cls.type.category,
