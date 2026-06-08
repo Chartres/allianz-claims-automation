@@ -22,7 +22,11 @@ Everything is now implemented and committed:
 - **Filing flow**, **intake**, **dashboard/CSV**, **PDF parsing**, **upload helper** — all present.
 
 These need a logged-in portal + the loaded extension to *verify/tune* (I can't, solo):
-1. **GATE: upload spike** — confirm the synthetic drop registers on the real NX dropzone (mechanism proven headless).
+1. **GATE: upload spike — ✅ CLEARED (2026-06-08).** Ran live against the real form: synthetic `drop`
+   on `NX-FILE-UPLOADER-DROP-ZONE` registered the file (invoice-info fields revealed + filename/size
+   shown). The project's core unknown is resolved — the extension upload approach works on the portal.
+   (Validated in page/MAIN world via the CLI session; the loaded extension's ISOLATED-world content
+   script uses the identical File+DataTransfer dispatch.)
 2. **Form-driver** — confirm Angular change-detection fires for dispatched dropdown/input events.
 3. **Crawl** — tune navigation timing / SW-lifetime chunking on a real history.
 4. **Discovery** — confirm the live reads.
