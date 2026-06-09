@@ -17,6 +17,7 @@
     .rev input[type=checkbox] { margin-top: 2px; }
     .rev .meta { font-variant-numeric: tabular-nums; }
     .rev .flags { color: #8a1c14; font-size: 12px; }
+    .rev .attach { margin-top: 4px; font-size: 11px; padding: 2px 7px; }
     .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; background: #f3f6fb; padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; }
     .totals b { font-variant-numeric: tabular-nums; }
     table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; }
@@ -45,6 +46,7 @@
     <span id="folderName" class="muted"></span>
   </div>
   <div id="dropzone">Drop invoice PDFs or photos here</div>
+  <input id="attachFile" type="file" accept=".pdf,image/*" multiple hidden>
   <div id="review"></div>
   <div class="bar" id="fileBar" hidden>
     <button id="fileThese">File selected →</button><span id="fileStatus" class="muted"></span>

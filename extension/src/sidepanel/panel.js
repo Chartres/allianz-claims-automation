@@ -91,15 +91,29 @@ function renderReview() {
   el.innerHTML = rows.map((r, i) => `
     <div class="rev">
       <input type="checkbox" data-i="${i}" ${r.include ? 'checked' : ''} ${r.flags.length ? 'disabled' : ''}>
-      <div>
+      <div style="flex:1">
         <div class="meta"><b>${r.parsed.patientName}</b> · ${r.parsed.date} · ${r.parsed.amount} CZK · ${r.cls.typeKey || '?'}</div>
         <div class="muted">${r.file.name}${r.docFiles?.length ? ` · 📎 ${r.docFiles.map(d => d.name).join(', ')}` : ''}</div>
         ${r.flags.length ? `<div class="flags">⚠ ${r.flags.join('; ')}</div>` : ''}
+        <button class="attach" data-i="${i}">📎 Attach doc…</button>
       </div>
     </div>`).join('');
   el.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', e => { rows[+e.target.dataset.i].include = e.target.checked; }));
+  el.querySelectorAll('.attach').forEach(b => b.addEventListener('click', e => { attachIdx = +e.currentTarget.dataset.i; const inp = $('#attachFile'); inp.value = ''; inp.click(); }));
   $('#fileBar').hidden = false;
 }
+
+// per-row manual attach — supplement (or override) the config-folder resolution by hand-picking a doc.
+let attachIdx = -1;
+$('#attachFile').addEventListener('change', e => {
+  if (attachIdx < 0 || !e.target.files.length) return;
+  const r = rows[attachIdx];
+  r.docFiles = [...(r.docFiles || []), ...e.target.files];
+  r.flags = r.flags.filter(f => !f.startsWith('missing'));   // a hand-picked doc satisfies the requirement
+  r.include = r.flags.length === 0;
+  attachIdx = -1;
+  renderReview();
+});
 
 const toB64 = async (file) => {
   const buf = new Uint8Array(await file.arrayBuffer());

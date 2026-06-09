@@ -16,6 +16,10 @@ intake/*
 # scratch
 archive/
 /tmp/
+extension/dist/
+
+# stray OCR model files (the real vendored ones live gzipped under extension/vendor/tesseract/)
+*.traineddata
 
 # macOS / scratch
 .DS_Store

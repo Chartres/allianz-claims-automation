@@ -33,6 +33,8 @@
   },
   "dependencies": {
     "exceljs": "^4.4.0",
-    "playwright-core": "^1.60.0"
+    "pdfjs-dist": "^6.0.227",
+    "playwright-core": "^1.60.0",
+    "tesseract.js": "^7.0.0"
   }
 }
