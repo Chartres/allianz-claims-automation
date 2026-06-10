@@ -4,34 +4,84 @@
   <meta charset="utf-8">
   <title>Allianz Claims</title>
   <style>
-    body { font: 13px/1.45 system-ui, sans-serif; margin: 0; padding: 12px; color: #1a1a1a; }
-    h1 { font-size: 15px; margin: 0 0 8px; }
-    h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #888; margin: 14px 0 4px; }
+    /* ── Belle Époque: ivory paper, deep viridian + gilt, Didone display, cartouche cards ── */
+    :root {
+      --paper: #f7f2e7; --paper2: #efe7d4; --ink: #2b2620; --soft: #8a7f6a;
+      --viridian: #1d4a44; --viridian2: #2a6157; --gilt: #b08d3e; --gilt2: #d8bd7f;
+      --oxblood: #7c2d26; --rule: #cdbf9f;
+    }
+    body {
+      font: 13px/1.5 Charter, Georgia, 'Iowan Old Style', serif; margin: 0; padding: 14px;
+      color: var(--ink); background: var(--paper);
+      background-image: radial-gradient(ellipse at top, rgba(255,255,255,.55), transparent 60%),
+        repeating-linear-gradient(0deg, transparent 0 2px, rgba(176,141,62,.025) 2px 4px);
+    }
+    h1 {
+      font-family: 'Didot', 'Bodoni 72', 'Playfair Display', Georgia, serif;
+      font-size: 19px; font-weight: 600; letter-spacing: .06em; margin: 0; color: var(--viridian);
+      text-align: center;
+    }
+    h1::after { content: '❦'; display: block; color: var(--gilt); font-size: 11px; margin-top: 1px; }
+    #portalStatus { text-align: center; font-size: 11px; font-style: italic; margin: 2px 0 10px; }
+    .ok-dot { color: var(--viridian2); } .warn-dot { color: var(--gilt); }
+    h2 {
+      font-family: 'Didot', 'Bodoni 72', Georgia, serif; font-size: 12px; font-weight: 600;
+      letter-spacing: .22em; text-transform: uppercase; color: var(--viridian);
+      margin: 18px 0 6px; display: flex; align-items: center; gap: 8px;
+    }
+    h2::before, h2::after { content: ''; height: 1px; flex: 1; background: linear-gradient(90deg, transparent, var(--rule)); }
+    h2::after { background: linear-gradient(90deg, var(--rule), transparent); }
     .bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
-    button, .btn { font: inherit; padding: 5px 9px; border: 1px solid #c8c8c8; border-radius: 6px; background: #f6f6f6; cursor: pointer; }
-    button:hover, .btn:hover { background: #ececec; }
-    button:disabled { opacity: .5; cursor: default; }
-    #dropzone { border: 2px dashed #bcd; border-radius: 8px; padding: 16px; text-align: center; color: #789; background: #f7fafc; }
-    #dropzone.over { background: #eef6ff; border-color: #6aa; }
-    .rev { border: 1px solid #eee; border-radius: 6px; padding: 6px 8px; margin: 4px 0; display: flex; gap: 8px; align-items: flex-start; }
-    .rev input[type=checkbox] { margin-top: 2px; }
+    button, .btn {
+      font: 12px/1.3 Charter, Georgia, serif; letter-spacing: .04em; padding: 5px 12px; cursor: pointer;
+      color: var(--viridian); background: linear-gradient(180deg, #fdfaf2, var(--paper2));
+      border: 1px solid var(--gilt2); border-radius: 999px; box-shadow: 0 1px 0 rgba(176,141,62,.25);
+    }
+    button:hover, .btn:hover { border-color: var(--gilt); background: #fbf5e6; }
+    button:disabled { opacity: .45; cursor: default; }
+    select {
+      font: inherit; font-size: 12px; color: var(--ink); background: #fdfaf2;
+      border: 1px solid var(--rule); border-radius: 6px; padding: 1px 4px; max-width: 130px;
+    }
+    #dropzone {
+      border: 1px dashed var(--gilt); border-radius: 10px; padding: 14px; text-align: center;
+      color: var(--soft); font-style: italic; background: rgba(255,255,255,.45);
+      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--rule);
+    }
+    #dropzone.over { background: #fbf3dd; border-color: var(--viridian); color: var(--viridian); }
+    .rev {
+      border: 1px solid var(--rule); border-radius: 8px; padding: 7px 9px; margin: 6px 0;
+      display: flex; gap: 8px; align-items: flex-start; background: rgba(255,255,255,.55);
+      box-shadow: 0 1px 2px rgba(43,38,32,.06);
+    }
+    .rev input[type=checkbox] { margin-top: 3px; accent-color: var(--viridian); }
     .rev .meta { font-variant-numeric: tabular-nums; }
-    .rev .flags { color: #8a1c14; font-size: 12px; }
-    .rev .attach { margin-top: 4px; font-size: 11px; padding: 2px 7px; }
-    .totals { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; background: #f3f6fb; padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; }
-    .totals b { font-variant-numeric: tabular-nums; }
+    .rev .flags { color: var(--oxblood); font-size: 12px; font-style: italic; }
+    .rev .attach { margin-top: 5px; font-size: 11px; padding: 2px 9px; }
+    .totals {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; padding: 10px 12px; margin-bottom: 10px;
+      background: rgba(255,255,255,.5); border: 1px solid var(--rule); border-radius: 10px;
+      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--gilt2);
+    }
+    .totals b { font-variant-numeric: tabular-nums; color: var(--viridian); }
     table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; }
-    th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #eee; white-space: nowrap; }
-    th { color: #666; font-weight: 600; }
+    th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #e4dbc4; white-space: nowrap; }
+    th { color: var(--soft); font-weight: 600; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
-    .flag { font-size: 11px; padding: 1px 6px; border-radius: 10px; }
-    .declined { background: #fde2e1; color: #8a1c14; } .under, .review, .over { background: #fff2cc; color: #6b5300; }
-    .ok, .full { background: #def7e5; color: #14532d; } .pending { background: #e7eefc; color: #1e3a8a; }
-    .muted { color: #999; } hr { border: none; border-top: 1px solid #eee; margin: 16px 0; }
+    .flag { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid transparent; }
+    .declined { background: #f6dfdc; color: var(--oxblood); border-color: #dcb3ad; }
+    .under, .review, .over { background: #f6ecd2; color: #6b5300; border-color: var(--gilt2); }
+    .ok, .full { background: #e2ece5; color: var(--viridian); border-color: #b5cdbf; }
+    .pending { background: #e7e9f0; color: #3a4a72; border-color: #bcc4d8; }
+    .muted { color: var(--soft); }
+    hr { border: none; height: 10px; margin: 16px 0 6px;
+         background: radial-gradient(circle at center, var(--gilt) 0 1px, transparent 1.6px) center / 14px 10px no-repeat,
+                     linear-gradient(90deg, transparent, var(--rule) 20% 42%, transparent 46%, transparent 54%, var(--rule) 58% 80%, transparent) center / 100% 1px no-repeat; }
   </style>
 </head>
 <body>
   <h1>Allianz Claims Helper</h1>
+  <div id="portalStatus" class="muted">○ checking portal…</div>
 
   <div class="bar">
     <button id="setup" title="Read payee/bank/country/family from the logged-in portal (pick a sample invoice)">⚙ Set up from portal</button>

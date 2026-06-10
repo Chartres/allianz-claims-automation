@@ -23,9 +23,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, send) => {
       }
       if (msg?.type === 'FILE_INVOICES') {
         const m = await driver();
+        const total = msg.invoices.length;
+        const progress = (i, id, state) => chrome.runtime.sendMessage({ type: 'FILE_PROGRESS', i, total, id, state }).catch(() => {});
+        progress(0, null, 'starting claim');
         await m.startClaim(msg.config);
         const results = [];
-        for (const inv of msg.invoices) {
+        for (const [idx, inv] of msg.invoices.entries()) {
+          progress(idx, inv.meta?.id, 'filing');
           const built = {
             fields: inv.fields,
             invoiceName: inv.invoiceName,
@@ -33,8 +37,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, send) => {
             docs: (inv.docs || []).map(d => ({ name: d.name, bytes: b64ToBytes(d.b64) })),
           };
           const r = await m.addInvoice(msg.config, built);
-          if (!r.saveDisabled) { await m.saveInvoice(); results.push({ id: inv.meta?.id, ok: true }); }
-          else results.push({ id: inv.meta?.id, ok: false, invalid: r.invalid });
+          if (!r.saveDisabled) { await m.saveInvoice(); results.push({ id: inv.meta?.id, ok: true }); progress(idx + 1, inv.meta?.id, 'saved'); }
+          else { results.push({ id: inv.meta?.id, ok: false, invalid: r.invalid }); progress(idx + 1, inv.meta?.id, 'failed: ' + r.invalid.join(',')); }
         }
         send({ ok: true, results, note: 'Stopped at overview — review, then send SUBMIT_CLAIM to submit.' });
         return;

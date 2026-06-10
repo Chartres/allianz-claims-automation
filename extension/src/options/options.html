@@ -4,14 +4,42 @@
   <meta charset="utf-8">
   <title>Allianz Claims — settings</title>
   <style>
-    body { font: 14px/1.5 system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; }
-    h1 { font-size: 18px; }
-    textarea { width: 100%; height: 50vh; font: 12px/1.4 ui-monospace, monospace; padding: 10px; border: 1px solid #ccc; border-radius: 8px; }
-    button { font: inherit; padding: 7px 14px; border: 1px solid #c8c8c8; border-radius: 6px; background: #f6f6f6; cursor: pointer; }
+    /* ── Belle Époque: matches the side panel's design system ── */
+    :root {
+      --paper: #f7f2e7; --paper2: #efe7d4; --ink: #2b2620; --soft: #8a7f6a;
+      --viridian: #1d4a44; --viridian2: #2a6157; --gilt: #b08d3e; --gilt2: #d8bd7f;
+      --oxblood: #7c2d26; --rule: #cdbf9f;
+    }
+    body {
+      font: 14px/1.5 Charter, Georgia, 'Iowan Old Style', serif; max-width: 720px; margin: 24px auto;
+      padding: 0 16px; color: var(--ink); background: var(--paper);
+      background-image: radial-gradient(ellipse at top, rgba(255,255,255,.55), transparent 60%),
+        repeating-linear-gradient(0deg, transparent 0 2px, rgba(176,141,62,.025) 2px 4px);
+    }
+    h1 {
+      font-family: 'Didot', 'Bodoni 72', 'Playfair Display', Georgia, serif;
+      font-size: 20px; font-weight: 600; letter-spacing: .06em; margin: 0 0 2px; color: var(--viridian);
+      text-align: center;
+    }
+    h1::after { content: '❦'; display: block; color: var(--gilt); font-size: 11px; margin-top: 1px; }
+    textarea {
+      width: 100%; height: 50vh; box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace;
+      padding: 10px 12px; color: var(--ink); background: rgba(255,255,255,.6);
+      border: 1px solid var(--rule); border-radius: 10px;
+      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 4px var(--gilt2);
+    }
+    textarea:focus { outline: none; border-color: var(--gilt); }
+    button {
+      font: 13px/1.3 Charter, Georgia, serif; letter-spacing: .04em; padding: 6px 16px; cursor: pointer;
+      color: var(--viridian); background: linear-gradient(180deg, #fdfaf2, var(--paper2));
+      border: 1px solid var(--gilt2); border-radius: 999px; box-shadow: 0 1px 0 rgba(176,141,62,.25);
+    }
+    button:hover { border-color: var(--gilt); background: #fbf5e6; }
     .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-    #status { color: #14532d; }
-    .err { color: #8a1c14 !important; }
-    p.muted { color: #777; }
+    #status { color: var(--viridian2); font-style: italic; }
+    .err { color: var(--oxblood) !important; }
+    p.muted { color: var(--soft); font-style: italic; }
+    code { font-family: ui-monospace, monospace; font-size: 12px; background: rgba(176,141,62,.12); padding: 0 4px; border-radius: 4px; }
   </style>
 </head>
 <body>

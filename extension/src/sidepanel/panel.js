@@ -21,6 +21,20 @@ chrome.storage.local.get('config').then(async ({ config }) => {
   try { CFG = await fetch(chrome.runtime.getURL('config.default.json')).then(r => r.json()); await chrome.storage.local.set({ config: CFG }); } catch { CFG = {}; }
 });
 
+// ---------------- portal connection status ----------------
+async function pingPortal() {
+  const el = $('#portalStatus');
+  const [tab] = await chrome.tabs.query({ url: 'https://my.allianzcare.com/*' });
+  if (!tab) { el.textContent = '○ portal not open'; el.className = 'muted'; return; }
+  chrome.tabs.sendMessage(tab.id, { type: 'PING_PORTAL' }, (r) => {
+    if (chrome.runtime.lastError || !r?.ok) { el.textContent = '○ portal tab not ready (reload it)'; el.className = 'muted'; return; }
+    el.textContent = r.loggedIn ? '● connected to portal' : '◐ portal open — log in';
+    el.className = r.loggedIn ? 'ok-dot' : 'warn-dot';
+  });
+}
+pingPortal();
+setInterval(pingPortal, 20000);
+
 // ---------------- onboarding: discover settings from the portal ----------------
 function applyDiscovery(found) {
   const P = CFG.portal = CFG.portal || {};
@@ -167,7 +181,10 @@ $('#fileThese').addEventListener('click', async () => {
     docs: await Promise.all((r.docFiles || []).map(async d => ({ name: d.name, b64: await toB64(d) }))),
   });
   status.textContent = 'filing… (watch the Allianz tab; it stops at the overview)';
+  const onProg = m => { if (m?.type === 'FILE_PROGRESS') status.textContent = `${m.i}/${m.total} ${m.state}${m.id ? ' — ' + m.id : ''}`; };
+  chrome.runtime.onMessage.addListener(onProg);
   chrome.tabs.sendMessage(tab.id, { type: 'FILE_INVOICES', config: CFG, invoices }, (resp) => {
+    chrome.runtime.onMessage.removeListener(onProg);
     if (chrome.runtime.lastError) { status.textContent = 'Error: ' + chrome.runtime.lastError.message; return; }
     if (!resp?.ok) { status.textContent = 'Failed: ' + (resp?.error || '?'); return; }
     const ok = resp.results.filter(x => x.ok).length;
@@ -237,7 +254,10 @@ async function renderDash() {
   const agg = (t, pairs) => `<h2>${t}</h2><table>${pairs.map(([k, v]) => `<tr><td>${k}</td><td class="num">${v.n}</td><td class="num">${fmt(v.amt)}</td></tr>`).join('')}</table>`;
   $('#content').innerHTML = (attn.length ? `<h2>⚠ Needs attention (${attn.length})</h2>${tbl(attn)}` : `<p class="muted">✓ Nothing declined/under-paid.</p>`) +
     `<h2>All claims</h2>${tbl(claims.slice().sort((a, b) => (b.received_iso || '').localeCompare(a.received_iso || '')))}` +
-    agg('By patient', groupSum(allInv, i => i.patient, i => i.amount)) + agg('By category', groupSum(allInv, i => i.category, i => i.amount));
+    agg('By patient', groupSum(allInv, i => i.patient, i => i.amount)) + agg('By category', groupSum(allInv, i => i.category, i => i.amount)) +
+    agg('By provider', groupSum(allInv, i => i.provider, i => i.amount)) +
+    agg('By month', groupSum(claims, c => (c.received_iso || '').slice(0, 7), c => c.total_invoiced).sort((a, b) => b[0].localeCompare(a[0]))) +
+    agg('By status', groupSum(claims, c => c.status, c => c.total_invoiced));
 }
 
 $('#refresh').addEventListener('click', () => {
