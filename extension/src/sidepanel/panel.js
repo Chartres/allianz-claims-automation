@@ -188,7 +188,7 @@ $('#fileThese').addEventListener('click', async () => {
     if (chrome.runtime.lastError) { status.textContent = 'Error: ' + chrome.runtime.lastError.message; return; }
     if (!resp?.ok) { status.textContent = 'Failed: ' + (resp?.error || '?'); return; }
     const ok = resp.results.filter(x => x.ok).length;
-    status.textContent = `Added ${ok}/${resp.results.length}. ${resp.note || ''} Review the overview, then submit.`;
+    status.textContent = `Added ${ok}/${resp.results.length} — review the overview in the Allianz tab, then submit there.`;
   });
 });
 

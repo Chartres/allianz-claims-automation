@@ -40,7 +40,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, send) => {
           if (!r.saveDisabled) { await m.saveInvoice(); results.push({ id: inv.meta?.id, ok: true }); progress(idx + 1, inv.meta?.id, 'saved'); }
           else { results.push({ id: inv.meta?.id, ok: false, invalid: r.invalid }); progress(idx + 1, inv.meta?.id, 'failed: ' + r.invalid.join(',')); }
         }
-        send({ ok: true, results, note: 'Stopped at overview — review, then send SUBMIT_CLAIM to submit.' });
+        send({ ok: true, results, note: 'Stopped at the claim overview.' });
         return;
       }
       if (msg?.type === 'SUBMIT_CLAIM') {

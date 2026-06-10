@@ -40,11 +40,19 @@ export function claimsToCSV(enrichedClaims) {
   return toCSV(rows, INV_COLS);
 }
 
+// Derive an ISO date from the portal's DD/MM/YYYY (or an already-ISO string) so the dashboard's
+// By-month aggregate works on imported data, not just crawled data.
+const toISO = (d) => {
+  const m = /^(\d{2})[\/.](\d{2})[\/.](\d{4})$/.exec(d || '');
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return /^\d{4}-\d{2}-\d{2}/.test(d || '') ? d.slice(0, 10) : '';
+};
+
 export function claimsFromCSV(text) {
   const byId = new Map();
   for (const r of fromCSV(text)) {
     if (!r.Claim) continue;
-    if (!byId.has(r.Claim)) byId.set(r.Claim, { id: r.Claim, received_date: r.Received, received_iso: '', status: r.Status, total_invoiced: +r.ClaimInvoiced || 0, total_reimbursed: +r.ClaimReimbursed || 0, reimbursements: [], invoices: [] });
+    if (!byId.has(r.Claim)) byId.set(r.Claim, { id: r.Claim, received_date: r.Received, received_iso: toISO(r.Received), status: r.Status, total_invoiced: +r.ClaimInvoiced || 0, total_reimbursed: +r.ClaimReimbursed || 0, reimbursements: [], invoices: [] });
     if (r.Amount !== '') byId.get(r.Claim).invoices.push({ patient: r.Patient, provider: r.Provider, amount: +r.Amount || 0, invoice_date: '', category: r.Category });
   }
   return [...byId.values()];

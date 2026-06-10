@@ -23,6 +23,20 @@ Honest state of the MV3 port. The brief is in `EXTENSION-GOAL.md`.
 - **Distribution documented** (`docs/EXTENSION-INSTALL.md`): load-unpacked (dev/personal) and
   Chrome Web Store **Unlisted** (link-only, no OAuth review) steps, permissions justification,
   privacy/data-handling notes, and why self-hosted `.crx` is blocked.
+- **Reliable OCR** (`src/lib/preprocess.js` + `src/offscreen/offscreen.js`): grayscale → bilinear
+  upscale → percentile contrast-stretch preprocessing (pipeline chosen by a real-invoice benchmark,
+  `npm run ocr-bench`), plus a confidence gate (< 55 → refuse + vision fallback; never file blind).
+- **Correction flywheel** (`src/lib/learn.js`): review-row fixes teach the config — patient-name
+  aliases (exact text-form, diacritics-tolerant) and provider→type hints (shown as ↻) persist to
+  `chrome.storage`, so the next batch parses/classifies better. Unit-tested.
+- **Signature design**: belle-époque design system (ivory paper, viridian + gilt, Didone display,
+  cartouche cards) across the side panel and options page.
+- **Persona traversal harness** (`npm run personas`): opens the real panel UI in headless Chrome
+  with a `chrome.*` shim and walks three personas' JTBDs end-to-end — first-run CSV import →
+  dashboard; filing parent: drop → flag → correct → attach → flywheel hint → file (simulated
+  driver progress); auditor: declined/under-paid + CSV export — 19 assertions, screenshots to
+  `dist/personas/`. Caught real bugs (empty-totals cartouche, `[hidden]` vs flex, missing
+  `received_iso` on CSV import).
 
 ## 🧩 Built end-to-end (all 4 steps) — remaining work is LIVE VALIDATION, not coding
 Everything is now implemented and committed:
