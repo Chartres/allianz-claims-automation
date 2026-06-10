@@ -7,6 +7,7 @@ import { parseFields } from '../lib/parse.js';
 import { classify } from '../lib/classify.js';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { SUP, baseName, indexFiles, supDocNameSet, resolveDocFiles } from '../lib/docs.js';
+import { applyTypeHint, recordPatientCorrection, recordTypeCorrection } from '../lib/learn.js';
 
 const $ = s => document.querySelector(s);
 const fmt = n => Math.round(n).toLocaleString();
@@ -57,6 +58,29 @@ let rows = [];
 let folderFiles = new Map();
 const detectProvider = text => (Object.entries(CFG.providers || {}).find(([, kws]) => kws.some(k => (text || '').toLowerCase().includes(k.toLowerCase()))) || [])[0] || CFG.defaultProvider;
 
+// (Re)evaluate a row: classify (keywords → learned provider hint → manual override), resolve its
+// supporting docs from the folder, recompute flags. Called on ingest AND after each correction.
+function evaluateRow(row) {
+  const { parsed, file, text } = row;
+  const docAvailable = (docType, patientKey) => resolveDocFiles(folderFiles, CFG, docType, patientKey).found.length > 0;
+  let cls = classify(parsed, CFG, { docAvailable, forceTypeKey: row.forcedType });
+  cls = applyTypeHint(cls, row.provider, CFG);             // learned provider→type fallback
+  const docFiles = [...(row.manualDocs || [])], missingDocs = [];
+  for (const need of (cls.type?.requiredDocs || [])) {
+    const { found, missing } = resolveDocFiles(folderFiles, CFG, need, parsed.patientName);
+    docFiles.push(...found);
+    if (!found.length && !row.manualDocs?.length) missingDocs.push(...missing); // hand-picked docs satisfy
+  }
+  const flags = [];
+  if (!text && isImage(file.name)) flags.push('photo — open & confirm (vision)');
+  if (parsed.patientName === '?') flags.push('unknown patient');
+  if (parsed.amount === '?') flags.push('no amount');
+  if (!cls.typeKey) flags.push('unclassified');
+  if (missingDocs.length) flags.push('missing ' + missingDocs.join(' + ') + ' — add to folder');
+  Object.assign(row, { cls, docFiles, flags, include: flags.length === 0 });
+  return row;
+}
+
 async function ingest(files) {
   indexFiles(folderFiles, files);            // so attachments referenced from any row are findable
   const supSet = supDocNameSet(CFG);
@@ -65,25 +89,12 @@ async function ingest(files) {
     if (supSet.has(baseName(file))) continue; // it's a supporting doc, not an invoice to file
     const text = await extractText(file);
     const parsed = parseFields(text, CFG);
-    // a required doc counts as "available" only if its configured file is actually in the folder.
-    const docAvailable = (docType, patientKey) => resolveDocFiles(folderFiles, CFG, docType, patientKey).found.length > 0;
-    const cls = classify(parsed, CFG, { docAvailable });
-    // resolve the actual supporting-doc files this invoice needs (deterministic — config-driven).
-    const docFiles = [], missingDocs = [];
-    for (const need of (cls.type?.requiredDocs || [])) {
-      const { found, missing } = resolveDocFiles(folderFiles, CFG, need, parsed.patientName);
-      docFiles.push(...found); missingDocs.push(...missing);
-    }
-    const flags = [];
-    if (!text && isImage(file.name)) flags.push('photo — open & confirm (vision)');
-    if (parsed.patientName === '?') flags.push('unknown patient');
-    if (parsed.amount === '?') flags.push('no amount');
-    if (!cls.typeKey) flags.push('unclassified');
-    if (missingDocs.length) flags.push('missing ' + missingDocs.join(' + ') + ' — add to folder');
-    rows.push({ file, parsed, cls, provider: detectProvider(text), docFiles, flags, include: flags.length === 0 });
+    rows.push(evaluateRow({ file, text, parsed, provider: detectProvider(text) }));
   }
   renderReview();
 }
+
+const opts = (keys, sel) => ['?', ...keys].map(k => `<option value="${k}" ${k === (sel || '?') ? 'selected' : ''}>${k}</option>`).join('');
 
 function renderReview() {
   const el = $('#review');
@@ -92,7 +103,12 @@ function renderReview() {
     <div class="rev">
       <input type="checkbox" data-i="${i}" ${r.include ? 'checked' : ''} ${r.flags.length ? 'disabled' : ''}>
       <div style="flex:1">
-        <div class="meta"><b>${r.parsed.patientName}</b> · ${r.parsed.date} · ${r.parsed.amount} CZK · ${r.cls.typeKey || '?'}</div>
+        <div class="meta">
+          <select class="fix-patient" data-i="${i}" title="Correct the patient — the fix is remembered">${opts(Object.keys(CFG.patients || {}), r.parsed.patientName)}</select>
+          · ${r.parsed.date} · ${r.parsed.amount} CZK ·
+          <select class="fix-type" data-i="${i}" title="Correct the treatment type — remembered for this provider">${opts(Object.keys(CFG.treatmentTypes || {}), r.cls.typeKey)}</select>
+          ${r.cls.viaHint ? '<span class="muted" title="classified from a previous correction for this provider">↻</span>' : ''}
+        </div>
         <div class="muted">${r.file.name}${r.docFiles?.length ? ` · 📎 ${r.docFiles.map(d => d.name).join(', ')}` : ''}</div>
         ${r.flags.length ? `<div class="flags">⚠ ${r.flags.join('; ')}</div>` : ''}
         <button class="attach" data-i="${i}">📎 Attach doc…</button>
@@ -100,6 +116,19 @@ function renderReview() {
     </div>`).join('');
   el.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', e => { rows[+e.target.dataset.i].include = e.target.checked; }));
   el.querySelectorAll('.attach').forEach(b => b.addEventListener('click', e => { attachIdx = +e.currentTarget.dataset.i; const inp = $('#attachFile'); inp.value = ''; inp.click(); }));
+  // the flywheel: corrections fix the row AND teach the config for next time
+  el.querySelectorAll('.fix-patient').forEach(s => s.addEventListener('change', async e => {
+    const r = rows[+e.target.dataset.i], v = e.target.value;
+    r.parsed.patientName = v;
+    if (v !== '?') { recordPatientCorrection(CFG, v, r.parsed.raw); await chrome.storage.local.set({ config: CFG }); }
+    evaluateRow(r); renderReview();
+  }));
+  el.querySelectorAll('.fix-type').forEach(s => s.addEventListener('change', async e => {
+    const r = rows[+e.target.dataset.i], v = e.target.value;
+    r.forcedType = v === '?' ? null : v;
+    if (r.forcedType && r.provider) { recordTypeCorrection(CFG, r.provider, r.forcedType); await chrome.storage.local.set({ config: CFG }); }
+    evaluateRow(r); renderReview();
+  }));
   $('#fileBar').hidden = false;
 }
 
@@ -108,11 +137,9 @@ let attachIdx = -1;
 $('#attachFile').addEventListener('change', e => {
   if (attachIdx < 0 || !e.target.files.length) return;
   const r = rows[attachIdx];
-  r.docFiles = [...(r.docFiles || []), ...e.target.files];
-  r.flags = r.flags.filter(f => !f.startsWith('missing'));   // a hand-picked doc satisfies the requirement
-  r.include = r.flags.length === 0;
+  r.manualDocs = [...(r.manualDocs || []), ...e.target.files]; // survives re-evaluation
   attachIdx = -1;
-  renderReview();
+  evaluateRow(r); renderReview();
 });
 
 const toB64 = async (file) => {
