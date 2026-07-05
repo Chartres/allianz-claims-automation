@@ -1,16 +1,17 @@
 {
-  "_readme": "Copy to config.json and fill in. config.json is gitignored. Doc paths are resolved relative to docsBaseDir unless absolute or starting with ~.",
+  "_readme": "Copy to config.json and fill in the PERSONAL fields (patients, policyId, bankAccountMatch, gmail label ids). Everything else here — the treatment-types tree, benefit categories, payee/payment structure — is the reusable Allianz Care shape and can be left as-is. config.json is gitignored. The full portal category→sub-treatment tree is in reference/allianz-portal-reference.json; treatmentTypes[].category/subtype/reason below must be exact strings from it. Doc paths resolve relative to docsBaseDir unless absolute or starting with ~.",
 
-  "docsBaseDir": "~/Documents/insurance-docs",
+  "docsBaseDir": "data",
 
   "portal": {
     "url": "https://my.allianzcare.com/myhealth/1/home",
-    "policyId": "0000000",
+    "policyId": "P000000000",
     "cdpPort": 9222,
     "chromeProfileDir": "./chrome-profile",
     "payee": "Insured member",
     "paymentMethod": "Bank Transfer",
     "currencyMatch": "^CZK",
+    "_bankNote": "The saved bank-account list renders ONLY after the reimbursement currency is set, and is filtered by it. bankAccountMatch is the last digits of the account you want reimbursements sent to; leave '' for single-account policies that show no chooser.",
     "bankAccountMatch": "1234",
     "countryMatch": "Czech Republic"
   },
@@ -21,28 +22,30 @@
     "hotovoLabelId": "Label_YYYYYYYYYYYYYYYYY"
   },
 
-  "defaultProvider": "Acme Dental",
+  "defaultProvider": "Example Dental",
   "providers": {
-    "Acme Dental": ["acme"],
-    "City Clinic": ["city clinic"]
+    "Example Dental": ["example dental", "dental clinic"],
+    "Example Psychotherapist": ["mgr.", "phdr.", "psycholog"]
   },
 
   "_benefitsNote": "Per-invoice benefit category (by provider) + expected co-insurance % per category (from your policy). Used to compute expected reimbursement and flag under/over/declined. Caps, deductibles and FX are not modelled.",
   "benefits": {
     "providerCategory": {
-      "Acme Dental": "Dental treatment"
+      "Example Dental": "Dental treatment",
+      "Example Psychotherapist": "Psychotherapy"
     },
     "categoryCoverage": {
-      "Dental treatment": 100,
+      "Dental treatment": 80,
       "Dental surgery": 60,
       "Specialist fees": 80,
       "Medical practitioner fees": 80,
-      "Vaccinations": 100,
+      "Psychotherapy": 80,
       "Physiotherapy": 80,
+      "Vaccinations": 100,
       "Optical": 80
     },
     "defaultCategory": "Medical practitioner fees",
-    "dentalPlanBenefitName": "Example Dental Plan",
+    "dentalPlanBenefitName": "Dental Plan",
     "tolerancePct": 5
   },
 
@@ -51,13 +54,16 @@
     "Child":  { "portalLabel": "Child Surname (2012)",  "aliases": ["Child Surname"] }
   },
 
+  "_treatmentTypesNote": "keyword-scored → the exact portal category + sub-treatment (subtype) + diagnosis reason. Orthodontic needs a dental plan + X-ray upload; list them in requiredDocs and map files in supplementaryDocs. See reference/allianz-portal-reference.json for every valid category/subtype.",
   "treatmentTypes": {
-    "orthodontic":   { "category": "Dental Expenses", "subtype": "Orthodontic treatment",     "reason": "Teeth misalignment",   "requiredDocs": ["dentalPlan", "xray"], "keywords": ["invisalign", "oblouk", "niti", "ortodont", "retainer"] },
-    "routineDental": { "category": "Dental Expenses", "subtype": "Routine Dental Treatment",   "reason": "Dental Treatment",     "requiredDocs": [],                     "keywords": ["zubního kamene", "zubního povlaku", "hygiena", "preventivní", "prohlídka", "bitewing"] },
-    "laboratory":    { "category": "Tests/Scans",     "subtype": "Laboratory tests",          "reason": "Routine Health Check", "requiredDocs": [],                     "keywords": ["laborator", "odběr krve", "lab fee", "igg", "krevní"] },
-    "vaccination":   { "category": "Vaccination",     "subtype": null,                        "reason": null,                   "requiredDocs": [],                     "keywords": ["očkov", "vakcín", "vaccinat"] },
-    "prescription":  { "category": "Medication and Medical Aids", "subtype": null,             "reason": null,                   "requiredDocs": ["prescription"],       "keywords": ["lék", "recept", "lékárna", "pharmacy", "medication"] },
-    "doctorVisit":   { "category": "Doctor Visit",    "subtype": null,                        "reason": null,                   "requiredDocs": [],                     "keywords": ["konzultace", "vyšetření", "consultation"] }
+    "orthodontic":   { "category": "Dental Expenses", "subtype": "Orthodontic treatment",     "reason": "Teeth misalignment",   "requiredDocs": ["dentalPlan", "xray"], "keywords": ["invisalign", "oblouk", "niti", "ortodont", "retainer", "rovnátk", "aparát"] },
+    "routineDental": { "category": "Dental Expenses", "subtype": "Routine Dental Treatment",   "reason": "Dental Treatment",     "requiredDocs": [],                     "keywords": ["zubního kamene", "hygiena", "preventivní", "prohlídka", "bitewing", "výplň", "extrakce", "rtg", "ošetř", "pedostom", "stomatolog", "citliv", "zubn"] },
+    "psychotherapy": { "category": "Doctor Visit",    "subtype": "Psychotherapy consultation", "reason": null,                   "requiredDocs": [],                     "keywords": ["psychoterap", "psychotherapy", "terapeutick", "terapie", "sezení", "session", "poradensk"] },
+    "physiotherapy": { "category": "Doctor Visit",    "subtype": "Physiotherapy",              "reason": null,                   "requiredDocs": [],                     "keywords": ["fyzioterap", "physiotherap", "rehabilit"] },
+    "specialist":    { "category": "Doctor Visit",    "subtype": "Specialist Visit",           "reason": null,                   "requiredDocs": [],                     "keywords": ["specialist", "konzultace", "vyšetření", "consultation"] },
+    "laboratory":    { "category": "Tests/Scans",     "subtype": "Laboratory tests",           "reason": null,                   "requiredDocs": [],                     "keywords": ["laborator", "odběr krve", "lab fee", "krevní"] },
+    "vaccination":   { "category": "Vaccination",     "subtype": "Vaccination",                "reason": null,                   "requiredDocs": [],                     "keywords": ["očkov", "vakcín", "vaccinat"] },
+    "prescription":  { "category": "Medication and Medical Aids", "subtype": "Medication",     "reason": null,                   "requiredDocs": ["prescription"],       "keywords": ["lék", "recept", "lékárna", "pharmacy", "medication"] }
   },
 
   "supplementaryDocs": {
@@ -67,6 +73,6 @@
   },
 
   "patientOverrides": {
-    "Child": { "forceTreatmentType": "routineDental", "note": "Example: file ortho visits as routine when no plan is on file." }
+    "Child": { "forceTreatmentType": "routineDental", "note": "Example: file ortho visits as routine when no treatment plan is on file." }
   }
 }

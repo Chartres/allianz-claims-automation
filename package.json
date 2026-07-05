@@ -29,7 +29,8 @@
     "crawl": "node bin/crawl.js",
     "report": "node bin/report.js",
     "track": "node bin/policy.js && node bin/crawl.js && node bin/report.js",
-    "push-google": "node bin/sheets-push.js"
+    "push-google": "node bin/sheets-push.js",
+    "test": "node test/selfcheck.js"
   },
   "dependencies": {
     "exceljs": "^4.4.0",

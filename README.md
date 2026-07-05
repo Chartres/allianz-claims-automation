@@ -97,6 +97,31 @@ node bin/intake.js --submit        # fills + submits + moves PDFs to intake/_pro
 node bin/reconcile.js              # prints claims history (id / date / status) to verify they landed
 ```
 
+### What `intake.js` handles automatically
+- **Right patient, not the payer or the dentist.** The patient is read from the invoice recipient
+  (Odběratel / Bill to), matched on full-name aliases — so a treating clinician who shares a first
+  name with a family member (e.g. dentist *MDDr. Pavol Čurilla* vs patient *Pavol*) is never mistaken
+  for the patient.
+- **Deduplicates copies.** The same invoice often arrives two or three times (original + reissued
+  *paid* copy + a receipt). Entries sharing a faktura number are collapsed to one, keeping the paid copy.
+- **Skips already-filed invoices.** If `data/claims.json` exists (run `npm run crawl` first), invoices
+  that match an existing claim by patient + date + amount are reported and skipped — no duplicate claims.
+- **Orthodontic supplementary docs.** Orthodontic treatment requires a **dental/treatment plan** and
+  **OPG panoramic X-ray/intra-oral photos** upload. List them in `treatmentTypes.orthodontic.requiredDocs`
+  and map the files per patient in `supplementaryDocs`; intake attaches them to the right upload slots.
+- **Mixed invoice formats.** Dates are parsed across the `DD.MM.YYYY` / `D.M.YYYY` / `D/M/YYYY` /
+  `Invoice date:` variants; classification tolerates the intra-word spaces `pdftotext` sometimes injects.
+
+Run the logic self-check any time with `npm test` (no portal or network needed).
+
+**`reference/allianz-portal-reference.json`** is the committed, non-personal catalog of the whole
+portal: payee and payment-method options, the 112 reimbursement currencies, the 244 treatment
+countries, all 15 treatment categories with their sub-treatments, the diagnosis reasons, and the two
+required accident/other-insurer questions. `config.example.json` fields (`treatmentTypes[].category`/
+`subtype`/`reason`, `portal.payee`/`paymentMethod`/`currencyMatch`/`countryMatch`) must be exact
+strings from it — so onboarding is mostly copy-from-reference, no portal spelunking. `discover.js`
+regenerates the category tree into `data/treatment-catalog.json` from your own logged-in portal.
+
 ## Claims & reimbursements tracker
 
 Crawls the whole portal history + your policy, checks every reimbursement against the policy, and
@@ -164,6 +189,11 @@ Allianz reimburses **paid** invoices. Two ways to satisfy it:
   `bin/launch-chrome.js`, log in again, and resume (the crawler picks up where it left off).
 - The portal is an NX/Angular app: dropdowns are `nx-dropdown` (open, then click `role=option`);
   file inputs accept `setInputFiles` (multi-file). Final submit is **SUBMIT CLAIM → AGREE AND PROCEED**.
+- **Payee step order matters.** The saved bank accounts render *only after* the reimbursement
+  currency is chosen and are filtered by it, so currency must be set first. Some policies also gate
+  Continue on two required questions ("...as a result of an accident?" / "...insured by another
+  provider?") — both are answered *No*. The driver handles all of this and is a no-op where a policy
+  doesn't show them.
 - Newly submitted claims show **In-progress**; they flip to **Closed** once Allianz finishes (a few days).
 - `archive/` holds the original exploratory one-off scripts from development (gitignored).
 ```
