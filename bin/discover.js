@@ -50,6 +50,11 @@ function findSample() {
   await portal.selectDropdown(page, 'paymentMethod', found.method.find(m => /bank/i.test(m)) || found.method[0]).catch(() => {});
   await portal.selectDropdown(page, 'paymentCurrency', new RegExp(cfg.portal.currencyMatch || '^CZK')).catch(() => {});
   await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(500);
+  // some policies gate Continue on two required questions ("...accident?" / "...other insurer?") —
+  // answer both No so discovery can proceed. No-op when the policy doesn't show them.
+  for (const id of ['#question1ToggleNo', '#question2ToggleNo']) {
+    if (await page.locator(id).count()) { await page.locator(`${id} label`).first().click({ timeout: 4000 }).catch(() => {}); await page.waitForTimeout(200); }
+  }
   // saved bank accounts: in the page text the masked number is followed by a 3-letter country, e.g.
   // "********1234\n\tCZE". Each account may be in a different currency, so capture country→currency.
   const C2CUR = { CZE: 'CZK', SVK: 'EUR', LTU: 'EUR', DEU: 'EUR', AUT: 'EUR', FRA: 'EUR', IRL: 'EUR', ESP: 'EUR', ITA: 'EUR', NLD: 'EUR', PRT: 'EUR', GBR: 'GBP', USA: 'USD', POL: 'PLN', HUN: 'HUF', CHE: 'CHF', CAN: 'CAD', AUS: 'AUD' };
@@ -66,6 +71,29 @@ function findSample() {
   await page.locator('input[type=file]').first().setInputFiles(sample, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(2500);
   found.patients = await opts('patientName').catch(() => []);
   found.countries = await opts('country').catch(() => []);
+
+  // capture the treatment-types tree (main category → sub-treatments) once, so classification and
+  // filling reference real portal labels and nobody has to re-derive them from the portal.
+  try {
+    await page.locator('#treatmentProvider').fill('Discovery').catch(() => {});
+    await page.locator('#invoiceDate').fill('01/01/2025').catch(() => {});
+    await page.keyboard.press('Tab').catch(() => {});
+    await page.locator('#treatmentDate-0').fill('01/01/2025').catch(() => {});
+    await page.locator('#treatmentMainCategory-0').click({ timeout: 6000 });
+    await page.waitForTimeout(600);
+    const cats = [...new Set((await page.getByRole('option').allInnerTexts()).map(s => s.trim()).filter(Boolean))];
+    await page.keyboard.press('Escape').catch(() => {});
+    const tree = {};
+    for (const cat of cats) {
+      await portal.selectDropdown(page, 'treatmentMainCategory-0', cat).catch(() => {});
+      await page.waitForTimeout(700);
+      tree[cat] = [...new Set(await page.evaluate(() => { const g = document.querySelector('#treatmentCategory-0'); return g ? [...g.querySelectorAll('nx-radio,label')].map(e => e.innerText.trim()).filter(t => t && !/please select/i.test(t)) : []; }))];
+    }
+    const cf = path.join(cfg._root, 'data', 'treatment-catalog.json');
+    fs.mkdirSync(path.dirname(cf), { recursive: true });
+    fs.writeFileSync(cf, JSON.stringify({ capturedFor: 'Allianz Care MyHealth', mainCategories: cats, subTreatments: tree }, null, 2));
+    console.log(`  Captured treatment tree (${cats.length} categories) → data/treatment-catalog.json`);
+  } catch (e) { console.log('  (could not capture treatment tree:', e.message.split('\n')[0], ')'); }
 
   // abandon the draft
   await page.goto(`${cfg.portal.url}/claims/list`).catch(() => {});
