@@ -114,9 +114,13 @@ node bin/reconcile.js              # prints claims history (id / date / status) 
 
 Run the logic self-check any time with `npm test` (no portal or network needed).
 
-The full portal category → sub-treatment tree is in **`reference/allianz-treatment-catalog.json`**;
-`treatmentTypes[].category`/`subtype`/`reason` must be exact strings from it. `discover.js` regenerates
-it into `data/treatment-catalog.json` from the live portal.
+**`reference/allianz-portal-reference.json`** is the committed, non-personal catalog of the whole
+portal: payee and payment-method options, the 112 reimbursement currencies, the 244 treatment
+countries, all 15 treatment categories with their sub-treatments, the diagnosis reasons, and the two
+required accident/other-insurer questions. `config.example.json` fields (`treatmentTypes[].category`/
+`subtype`/`reason`, `portal.payee`/`paymentMethod`/`currencyMatch`/`countryMatch`) must be exact
+strings from it — so onboarding is mostly copy-from-reference, no portal spelunking. `discover.js`
+regenerates the category tree into `data/treatment-catalog.json` from your own logged-in portal.
 
 ## Claims & reimbursements tracker
 

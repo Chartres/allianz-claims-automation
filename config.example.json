@@ -1,5 +1,5 @@
 {
-  "_readme": "Copy to config.json and fill in the PERSONAL fields (patients, policyId, bankAccountMatch, gmail label ids). Everything else here — the treatment-types tree, benefit categories, payee/payment structure — is the reusable Allianz Care shape and can be left as-is. config.json is gitignored. The full portal category→sub-treatment tree is in reference/allianz-treatment-catalog.json; treatmentTypes[].category/subtype/reason below must be exact strings from it. Doc paths resolve relative to docsBaseDir unless absolute or starting with ~.",
+  "_readme": "Copy to config.json and fill in the PERSONAL fields (patients, policyId, bankAccountMatch, gmail label ids). Everything else here — the treatment-types tree, benefit categories, payee/payment structure — is the reusable Allianz Care shape and can be left as-is. config.json is gitignored. The full portal category→sub-treatment tree is in reference/allianz-portal-reference.json; treatmentTypes[].category/subtype/reason below must be exact strings from it. Doc paths resolve relative to docsBaseDir unless absolute or starting with ~.",
 
   "docsBaseDir": "data",
 
@@ -54,7 +54,7 @@
     "Child":  { "portalLabel": "Child Surname (2012)",  "aliases": ["Child Surname"] }
   },
 
-  "_treatmentTypesNote": "keyword-scored → the exact portal category + sub-treatment (subtype) + diagnosis reason. Orthodontic needs a dental plan + X-ray upload; list them in requiredDocs and map files in supplementaryDocs. See reference/allianz-treatment-catalog.json for every valid category/subtype.",
+  "_treatmentTypesNote": "keyword-scored → the exact portal category + sub-treatment (subtype) + diagnosis reason. Orthodontic needs a dental plan + X-ray upload; list them in requiredDocs and map files in supplementaryDocs. See reference/allianz-portal-reference.json for every valid category/subtype.",
   "treatmentTypes": {
     "orthodontic":   { "category": "Dental Expenses", "subtype": "Orthodontic treatment",     "reason": "Teeth misalignment",   "requiredDocs": ["dentalPlan", "xray"], "keywords": ["invisalign", "oblouk", "niti", "ortodont", "retainer", "rovnátk", "aparát"] },
     "routineDental": { "category": "Dental Expenses", "subtype": "Routine Dental Treatment",   "reason": "Dental Treatment",     "requiredDocs": [],                     "keywords": ["zubního kamene", "hygiena", "preventivní", "prohlídka", "bitewing", "výplň", "extrakce", "rtg", "ošetř", "pedostom", "stomatolog", "citliv", "zubn"] },
