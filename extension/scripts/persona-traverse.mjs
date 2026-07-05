@@ -6,6 +6,8 @@
 //   P2 "filing parent"  — portal connected: drop invoices, fix a misread, attach a doc, watch the
 //                          correction flywheel auto-classify the next invoice, file the batch.
 //   P3 "auditor"        — quarter-end: spot declined/under-paid claims, export the CSV.
+//   P4 "returning filer" — drops a pile that includes an invoice already claimed AND the same
+//                          faktura twice (original + paid receipt): both are caught, never re-filed.
 //
 // Run: npm run personas        All data below is synthetic (the Novák family).
 import http from 'node:http';
@@ -229,6 +231,31 @@ console.log('\nP3 · auditor (seeded tracker, checks shortfalls, exports)');
   const dl = page.waitForEvent('download');
   await page.locator('#export').click();
   check('CSV export downloads', (await dl).suggestedFilename() === 'allianz-claims.csv');
+  await page.close();
+}
+
+// ===== P4 · returning filer — JTBD: "Clear the pile without double-claiming anything." =====
+console.log('\nP4 · returning filer (duplicate protection: history + same-VS copies)');
+{
+  // History from a crawl: invoice 2260001234 (Tomáš, 14 May, 1850) was already filed as 84512001.
+  const crawled = [{ id: '84512001', status: 'Completed', received_date: '20/05/2026', received_iso: '2026-05-20', total_invoiced: 1850, total_reimbursed: 1850, reimbursements: [], invoices: [{ patient: 'Tomáš Novák (2013)', provider: 'Stomatologie Vltava', amount: 1850, invoice_date: '14 May 2026', category: 'Dental treatment' }] }];
+  const page = await open({
+    store: { config: CFG, claims: crawled }, portal: true, loggedIn: true,
+    ocrTexts: [
+      OCR_TEXTS[0], // the very invoice that's already claim 84512001
+      'Stomatologie Vltava s.r.o.\nFAKTURA - DAŇOVÝ DOKLAD Č. 2260011111\nPacient: Tomáš Novák\nDatum vystavení: 20.05.2026\nPreventivní prohlídka\nCelkem: 900 Kč',
+      'Stomatologie Vltava s.r.o.\nFAKTURA - DAŇOVÝ DOKLAD Č. 2260011111\nPacient: Tomáš Novák\nDatum vystavení: 20.05.2026\nPreventivní prohlídka\nCelkem: 900 Kč\nZbývá uhradit: 0,00 Kč',
+    ],
+  });
+  await page.waitForFunction(() => document.querySelector('#portalStatus')?.textContent.includes('connected'));
+  await dropFiles(page, ['faktura-2260001234.png', 'faktura-2260011111.png', 'doklad-uhrazeno-2260011111.png']);
+  await page.waitForFunction(() => document.querySelectorAll('.rev').length === 3);
+  const rowText = i => page.locator('.rev').nth(i).innerText();
+  check('already-filed invoice is flagged with its claim number', /already submitted \(claim 84512001\)/.test(await rowText(0)));
+  check('…and its checkbox is locked out', await page.locator('.rev input[type=checkbox]').nth(0).isDisabled());
+  check('unpaid copy of a twice-dropped faktura is flagged as duplicate', /duplicate of doklad-uhrazeno-2260011111\.png/.test(await rowText(1)));
+  check('the paid receipt copy stays fileable', !/⚠/.test(await rowText(2)));
+  await snap(page, 'returning-duplicate-guard');
   await page.close();
 }
 

@@ -24,10 +24,10 @@ export function findDropTargets(doc = document) {
   return [...new Set(targets.filter(Boolean))];
 }
 
-/** Dispatch a synthetic dragenter/dragover/drop carrying `file` onto `target`. */
+/** Dispatch a synthetic dragenter/dragover/drop carrying `file` (File or File[]) onto `target`. */
 export function fireDrop(target, file) {
   const dt = new DataTransfer();
-  dt.items.add(file);
+  for (const f of [].concat(file)) dt.items.add(f);
   for (const type of ['dragenter', 'dragover', 'drop']) {
     const ev = new DragEvent(type, { bubbles: true, cancelable: true, composed: true });
     // dataTransfer is read-only on the constructor in some engines; force it

@@ -8,6 +8,7 @@ import { classify } from '../lib/classify.js';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { SUP, baseName, indexFiles, supDocNameSet, resolveDocFiles } from '../lib/docs.js';
 import { applyTypeHint, recordPatientCorrection, recordTypeCorrection } from '../lib/learn.js';
+import { submittedIndex, computeBatchFlags } from '../lib/dedupe.js';
 
 const $ = s => document.querySelector(s);
 const fmt = n => Math.round(n).toLocaleString();
@@ -67,6 +68,10 @@ $('#sampleFile').addEventListener('change', async (e) => {
 
 // ---------------- intake ----------------
 let rows = [];
+// index of already-filed invoices (from the crawled/imported claim history) — blocks re-filing
+let submittedIdx = {};
+const refreshSubmittedIdx = async () => { const { claims = [] } = await chrome.storage.local.get('claims'); submittedIdx = submittedIndex(claims); };
+refreshSubmittedIdx();
 // index of every supported file the user has granted (folder, recursed, + drops), keyed by lowercased
 // relative path AND basename — so config.supplementaryDocs can reference "Child/opg.png" or "opg.png".
 let folderFiles = new Map();
@@ -82,6 +87,7 @@ function evaluateRow(row) {
   const docFiles = [...(row.manualDocs || [])], missingDocs = [];
   for (const need of (cls.type?.requiredDocs || [])) {
     const { found, missing } = resolveDocFiles(folderFiles, CFG, need, parsed.patientName);
+    found.forEach(f => { try { f._docType = need; } catch {} }); // groups files per uploader slot when filing
     docFiles.push(...found);
     if (!found.length && !row.manualDocs?.length) missingDocs.push(...missing); // hand-picked docs satisfy
   }
@@ -113,9 +119,10 @@ const opts = (keys, sel) => ['?', ...keys].map(k => `<option value="${k}" ${k ==
 function renderReview() {
   const el = $('#review');
   if (!rows.length) { el.innerHTML = ''; $('#fileBar').hidden = true; return; }
-  el.innerHTML = rows.map((r, i) => `
+  computeBatchFlags(rows, submittedIdx); // duplicates within the batch + already-filed invoices
+  el.innerHTML = rows.map((r, i) => { const fl = [...r.flags, ...(r.batchFlags || [])]; return `
     <div class="rev">
-      <input type="checkbox" data-i="${i}" ${r.include ? 'checked' : ''} ${r.flags.length ? 'disabled' : ''}>
+      <input type="checkbox" data-i="${i}" ${r.include ? 'checked' : ''} ${fl.length ? 'disabled' : ''}>
       <div style="flex:1">
         <div class="meta">
           <select class="fix-patient" data-i="${i}" title="Correct the patient — the fix is remembered">${opts(Object.keys(CFG.patients || {}), r.parsed.patientName)}</select>
@@ -124,10 +131,10 @@ function renderReview() {
           ${r.cls.viaHint ? '<span class="muted" title="classified from a previous correction for this provider">↻</span>' : ''}
         </div>
         <div class="muted">${r.file.name}${r.docFiles?.length ? ` · 📎 ${r.docFiles.map(d => d.name).join(', ')}` : ''}</div>
-        ${r.flags.length ? `<div class="flags">⚠ ${r.flags.join('; ')}</div>` : ''}
+        ${fl.length ? `<div class="flags">⚠ ${fl.join('; ')}</div>` : ''}
         <button class="attach" data-i="${i}">📎 Attach doc…</button>
       </div>
-    </div>`).join('');
+    </div>`; }).join('');
   el.querySelectorAll('input[type=checkbox]').forEach(c => c.addEventListener('change', e => { rows[+e.target.dataset.i].include = e.target.checked; }));
   el.querySelectorAll('.attach').forEach(b => b.addEventListener('click', e => { attachIdx = +e.currentTarget.dataset.i; const inp = $('#attachFile'); inp.value = ''; inp.click(); }));
   // the flywheel: corrections fix the row AND teach the config for next time
@@ -178,7 +185,7 @@ $('#fileThese').addEventListener('click', async () => {
       provider: r.provider, date: r.parsed.date, amount: r.parsed.amount,
       category: r.cls.type.category, subtype: r.cls.type.subtype || null, reason: r.cls.type.reason || null,
     },
-    docs: await Promise.all((r.docFiles || []).map(async d => ({ name: d.name, b64: await toB64(d) }))),
+    docs: await Promise.all((r.docFiles || []).map(async d => ({ name: d.name, b64: await toB64(d), docType: d._docType || null }))),
   });
   status.textContent = 'filing… (watch the Allianz tab; it stops at the overview)';
   const onProg = m => { if (m?.type === 'FILE_PROGRESS') status.textContent = `${m.i}/${m.total} ${m.state}${m.id ? ' — ' + m.id : ''}`; };
@@ -269,5 +276,8 @@ $('#export').addEventListener('click', async () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'allianz-claims.csv'; a.click(); URL.revokeObjectURL(a.href);
 });
 $('#import').addEventListener('change', async e => { const f = e.target.files[0]; if (!f) return; await chrome.storage.local.set({ claims: claimsFromCSV(await f.text()) }); renderDash(); });
-chrome.storage.onChanged.addListener(ch => { if (ch.claims) renderDash(); if (ch.config) chrome.storage.local.get('config').then(({ config }) => { CFG = config || {}; }); });
+chrome.storage.onChanged.addListener(ch => {
+  if (ch.claims) { renderDash(); refreshSubmittedIdx().then(() => { if (rows.length) renderReview(); }); } // fresh crawl may reveal already-filed rows
+  if (ch.config) chrome.storage.local.get('config').then(({ config }) => { CFG = config || {}; });
+});
 renderDash();

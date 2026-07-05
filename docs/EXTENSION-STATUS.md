@@ -32,11 +32,25 @@ Honest state of the MV3 port. The brief is in `EXTENSION-GOAL.md`.
 - **Signature design**: belle-époque design system (ivory paper, viridian + gilt, Didone display,
   cartouche cards) across the side panel and options page.
 - **Persona traversal harness** (`npm run personas`): opens the real panel UI in headless Chrome
-  with a `chrome.*` shim and walks three personas' JTBDs end-to-end — first-run CSV import →
+  with a `chrome.*` shim and walks four personas' JTBDs end-to-end — first-run CSV import →
   dashboard; filing parent: drop → flag → correct → attach → flywheel hint → file (simulated
-  driver progress); auditor: declined/under-paid + CSV export — 19 assertions, screenshots to
-  `dist/personas/`. Caught real bugs (empty-totals cartouche, `[hidden]` vs flex, missing
-  `received_iso` on CSV import).
+  driver progress); auditor: declined/under-paid + CSV export; returning filer: duplicate
+  protection — 23 assertions, screenshots to `dist/personas/`. Caught real bugs (empty-totals
+  cartouche, `[hidden]` vs flex, missing `received_iso` on CSV import).
+- **Real-world-invoice fixes forward-ported from the CLI's live run** (PRs #1–#2): recipient-block
+  patient matching (a dentist sharing a patient's first name no longer misattributes), 1–2 digit
+  dates across Czech/English label variants, keyword matching that survives extractor-injected
+  mid-word spaces, and the full portal treatment tree (psychotherapy/physiotherapy/specialist)
+  synced into `config.default.json` (canonical source: `reference/allianz-portal-reference.json`).
+- **Form-driver live-hardening ported from `lib/portal.js`**: per-slot uploads
+  (`#nx-file-uploader-{slot}-input`, verified by filename + retried, doc files grouped per slot),
+  the two required accident/other-insurer toggles answered No when shown, currency-before-bank
+  ordering, guarded bank chooser (single-account policies show none), retried "Add (another)
+  invoice" click, and a diagnosis-reason fallback so the form never silently stays invalid.
+- **Duplicate-filing protection** (`src/lib/dedupe.js`): an invoice matching the crawled/imported
+  claim history (patient + date + amount) is flagged "already submitted" and locked out; the same
+  faktura dropped twice (original + paid receipt) collapses to the best copy. CSV export/import now
+  round-trips `InvoiceDate` so the guard survives moving machines. Unit-tested + persona-walked.
 
 ## 🧩 Built end-to-end (all 4 steps) — remaining work is LIVE VALIDATION, not coding
 Everything is now implemented and committed:

@@ -34,7 +34,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, send) => {
             fields: inv.fields,
             invoiceName: inv.invoiceName,
             invoiceBytes: b64ToBytes(inv.invoiceB64),
-            docs: (inv.docs || []).map(d => ({ name: d.name, bytes: b64ToBytes(d.b64) })),
+            docs: (inv.docs || []).map(d => ({ name: d.name, bytes: b64ToBytes(d.b64), docType: d.docType || null })),
           };
           const r = await m.addInvoice(msg.config, built);
           if (!r.saveDisabled) { await m.saveInvoice(); results.push({ id: inv.meta?.id, ok: true }); progress(idx + 1, inv.meta?.id, 'saved'); }

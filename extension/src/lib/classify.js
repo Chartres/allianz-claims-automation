@@ -9,8 +9,14 @@ export function classify(parsed, cfg, { forceTypeKey, docAvailable } = {}) {
     best = forceTypeKey; bestScore = 99; overridden = true;
   } else {
     const hay = ((parsed.items || []).join(' ') + ' ' + (parsed.raw || '')).toLowerCase();
+    // pdf.js/OCR text extraction can inject spaces inside words on some invoices ("O rtodontická",
+    // "zubního kam ene"). Also test against a space-stripped copy so keywords still match.
+    const haySquished = hay.replace(/\s+/g, '');
     for (const [key, tt] of Object.entries(cfg.treatmentTypes)) {
-      const score = (tt.keywords || []).reduce((n, kw) => n + (hay.includes(kw.toLowerCase()) ? 1 : 0), 0);
+      const score = (tt.keywords || []).reduce((n, kw) => {
+        const k = kw.toLowerCase();
+        return n + (hay.includes(k) || haySquished.includes(k.replace(/\s+/g, '')) ? 1 : 0);
+      }, 0);
       if (score > bestScore) { best = key; bestScore = score; }
     }
     const ov = cfg.patientOverrides && cfg.patientOverrides[parsed.patientName];

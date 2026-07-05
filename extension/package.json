@@ -5,7 +5,7 @@
   "description": "MV3 extension sources are ES modules; this marks the subtree so node (tests/preflight) parses .js as ESM. Not bundled into the extension.",
   "scripts": {
     "preflight": "node scripts/preflight.mjs",
-    "test": "node scripts/docs.test.mjs && node scripts/preprocess.test.mjs && node scripts/learn.test.mjs && node scripts/csv.test.mjs",
+    "test": "node scripts/docs.test.mjs && node scripts/preprocess.test.mjs && node scripts/learn.test.mjs && node scripts/csv.test.mjs && node scripts/parse.test.mjs && node scripts/dedupe.test.mjs",
     "personas": "node scripts/persona-traverse.mjs",
     "check": "node scripts/preflight.mjs && npm run -s test",
     "ocr-bench": "node scripts/ocr-bench.mjs",

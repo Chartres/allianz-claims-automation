@@ -58,10 +58,29 @@ async function selectRadio(text) {
   const radio = await waitFor(() => [...document.querySelectorAll('nx-radio')]
     .find(r => { const t = (r.innerText || '').trim(); return t === text || t.includes(text); }), { timeout: 6000 });
   if (!radio) throw new Error('radio not found: ' + text);
+  try { radio.scrollIntoView({ block: 'center' }); } catch {}
   // click the label (not just the input) — Angular needs the label's handler to fire dependent
   // updates (e.g. the subtype radio populating the reason dropdown); input-only check isn't enough.
   (radio.querySelector('label') || radio.querySelector('input[type=radio]') || radio).click();
   await sleep(400);
+}
+
+// Upload file(s) into a specific uploader slot of the current invoice form and confirm it took.
+// The portal's file inputs have stable per-form ids (#nx-file-uploader-0-input = invoice,
+// -1 = dental plan, -2 = X-rays/photos), which is far more reliable than indexing every file input
+// on the page — after several invoices the DOM accumulates stale ones. Drops on the slot's own
+// uploader zone (the gate-cleared technique), verified by filename + retried.
+async function uploadTo(slot, files) {
+  const stem = files[0].name.replace(/\.[^.]+$/, '').slice(0, 18);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const input = document.getElementById(`nx-file-uploader-${slot}-input`) || document.querySelectorAll('input[type=file]')[slot];
+    const zone = input && (input.closest('nx-file-uploader')?.querySelector('nx-file-uploader-drop-zone') || input.closest('nx-file-uploader') || input.parentElement || input);
+    const targets = zone ? [zone] : (slot === 0 ? findDropTargets() : []);
+    for (const t of targets) { try { fireDrop(t, files); } catch {} }
+    await sleep(2200 + 800 * (files.length - 1));
+    if (document.body.innerText.includes(stem)) return true;
+  }
+  return false;
 }
 
 // ---- claim flow (mirrors lib/portal.js) ----
@@ -71,9 +90,21 @@ export async function startClaim(cfg) {
   await sleep(1500);
   await selectDropdown('payee', P.payee || 'Insured member');
   await selectDropdown('paymentMethod', P.paymentMethod || 'Bank Transfer');
+  // Reimbursement currency must be set before the saved bank accounts render — the account
+  // list is filtered by it. (Setting the account first, or skipping currency, leaves an empty list.)
   await selectDropdown('paymentCurrency', new RegExp(P.currencyMatch || '^CZK'));
   document.body.click();
-  await selectRadio(P.bankAccountMatch).catch(() => {}); // inner input toggles Angular's radio
+  await sleep(600);
+  // Some policies gate Continue on two required questions ("...as a result of an accident?" /
+  // "...insured by another provider?"). Answer both No. No-op when the policy doesn't show them.
+  for (const id of ['question1ToggleNo', 'question2ToggleNo']) {
+    const q = document.getElementById(id);
+    if (q) { (q.querySelector('label') || q).click(); await sleep(300); }
+  }
+  // Pick the saved bank account (currency-filtered list). Guarded: a single-account policy
+  // may show no chooser at all, in which case we just continue.
+  if (P.bankAccountMatch && [...document.querySelectorAll('nx-radio')].some(r => (r.innerText || '').includes(P.bankAccountMatch)))
+    await selectRadio(P.bankAccountMatch).catch(() => {});
   await sleep(400);
   await clickByText(/^continue$/i);
   await sleep(1800);
@@ -82,11 +113,17 @@ export async function startClaim(cfg) {
 // inv: { fields:{patientLabel,provider,date,amount,category,subtype,reason}, invoiceBytes, invoiceName, docs:[{bytes,name}] }
 export async function addInvoice(cfg, inv) {
   const P = cfg.portal;
-  await clickByText(/add (another )?invoice/i);
+  // Open a fresh invoice form. The button reads "Add invoice" the first time and "Add another
+  // invoice" after — and after a heavy invoice (e.g. orthodontic with several large X-ray
+  // uploads) the overview can take a while to settle, so retry the click.
+  for (let attempt = 0; ; attempt++) {
+    try { await clickByText(/add (another )?invoice/i); break; }
+    catch (e) { if (attempt >= 2) throw e; await sleep(2500); }
+  }
   await sleep(1500);
-  // upload invoice via synthetic drop
+  // invoice upload (slot 0) via synthetic drop — verified + retried
   const file = new File([inv.invoiceBytes], inv.invoiceName, { type: 'application/pdf' });
-  for (const t of findDropTargets()) { try { fireDrop(t, file); } catch {} }
+  await uploadTo(0, [file]);
   await waitFor(() => document.getElementById('patientName'), { timeout: 8000 });
   await selectDropdown('patientName', inv.fields.patientLabel);
   await selectDropdown('country', new RegExp(P.countryMatch || 'Czech Republic', 'i'));
@@ -97,15 +134,27 @@ export async function addInvoice(cfg, inv) {
   await fillInput('treatmentDate-0', inv.fields.date);
   await selectDropdown('treatmentMainCategory-0', inv.fields.category);
   if (inv.fields.subtype) { await selectRadio(inv.fields.subtype).catch(() => {}); await sleep(800); } // subtype is an nx-radio
-  // supplementary docs → file inputs 1,2,…
-  let idx = 1;
+  // supplementary docs → uploader slots 1,2,… — one slot per doc type (dental plan, X-rays),
+  // so multiple files of one type (e.g. several X-rays) land together in their slot.
+  const groups = [];
   for (const d of (inv.docs || [])) {
-    const fi = document.querySelectorAll('input[type=file]')[idx];
-    if (fi) { for (const t of [fi, fi.parentElement]) try { fireDrop(t, new File([d.bytes], d.name)); } catch {} ; idx++; await sleep(2000); }
+    const f = new File([d.bytes], d.name);
+    const g = d.docType && groups.find(x => x.docType === d.docType);
+    if (g) g.files.push(f); else groups.push({ docType: d.docType, files: [f] });
   }
-  if (inv.fields.reason) {
-    const hasReason = await waitFor(() => document.getElementById('masterDiagnosisCode-0'), { timeout: 5000 }); // appears after subtype
-    if (hasReason) await selectDropdown('masterDiagnosisCode-0', inv.fields.reason).catch(() => {});
+  let idx = 1;
+  for (const g of groups) { await uploadTo(idx, g.files); idx++; }
+  // reason (masterDiagnosisCode) if present/required. Try the configured reason; if it isn't an
+  // exact option and the field is still required, fall back to the first real option so the form
+  // can save rather than silently staying invalid.
+  const reasonEl = inv.fields.reason
+    ? await waitFor(() => document.getElementById('masterDiagnosisCode-0'), { timeout: 5000 }) // appears after subtype
+    : document.getElementById('masterDiagnosisCode-0');
+  if (reasonEl) {
+    let picked = false;
+    if (inv.fields.reason) picked = await selectDropdown('masterDiagnosisCode-0', inv.fields.reason).then(() => true).catch(() => false);
+    if (!picked && document.getElementById('masterDiagnosisCode-0')?.classList.contains('ng-invalid'))
+      await selectDropdown('masterDiagnosisCode-0', /\S/).catch(() => {});
   }
   await fillInput('amount-0', inv.fields.amount);
   await sleep(800);

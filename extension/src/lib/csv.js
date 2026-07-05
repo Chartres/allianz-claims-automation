@@ -31,12 +31,12 @@ export function fromCSV(text) {
 }
 
 // Flatten claims → one CSV row per invoice (round-trips the full tracker). Import groups by Claim back.
-const INV_COLS = ['Claim', 'Received', 'Status', 'Check', 'Patient', 'Provider', 'Category', 'Coverage%', 'Amount', 'ClaimInvoiced', 'ClaimReimbursed'];
+const INV_COLS = ['Claim', 'Received', 'Status', 'Check', 'Patient', 'Provider', 'Category', 'Coverage%', 'Amount', 'InvoiceDate', 'ClaimInvoiced', 'ClaimReimbursed'];
 
 export function claimsToCSV(enrichedClaims) {
   const rows = [];
   for (const c of enrichedClaims) for (const i of (c.invoices.length ? c.invoices : [{}]))
-    rows.push({ Claim: c.id, Received: c.received_date, Status: c.status, Check: c.check, Patient: i.patient || '', Provider: i.provider || '', Category: i.category || '', 'Coverage%': i.coverage_pct ?? '', Amount: i.amount ?? '', ClaimInvoiced: c.total_invoiced, ClaimReimbursed: c.total_reimbursed });
+    rows.push({ Claim: c.id, Received: c.received_date, Status: c.status, Check: c.check, Patient: i.patient || '', Provider: i.provider || '', Category: i.category || '', 'Coverage%': i.coverage_pct ?? '', Amount: i.amount ?? '', InvoiceDate: i.invoice_date || '', ClaimInvoiced: c.total_invoiced, ClaimReimbursed: c.total_reimbursed });
   return toCSV(rows, INV_COLS);
 }
 
@@ -53,7 +53,7 @@ export function claimsFromCSV(text) {
   for (const r of fromCSV(text)) {
     if (!r.Claim) continue;
     if (!byId.has(r.Claim)) byId.set(r.Claim, { id: r.Claim, received_date: r.Received, received_iso: toISO(r.Received), status: r.Status, total_invoiced: +r.ClaimInvoiced || 0, total_reimbursed: +r.ClaimReimbursed || 0, reimbursements: [], invoices: [] });
-    if (r.Amount !== '') byId.get(r.Claim).invoices.push({ patient: r.Patient, provider: r.Provider, amount: +r.Amount || 0, invoice_date: '', category: r.Category });
+    if (r.Amount !== '') byId.get(r.Claim).invoices.push({ patient: r.Patient, provider: r.Provider, amount: +r.Amount || 0, invoice_date: r.InvoiceDate || '', category: r.Category });
   }
   return [...byId.values()];
 }

@@ -37,6 +37,7 @@
       "Dental surgery": 60,
       "Specialist fees": 80,
       "Medical practitioner fees": 80,
+      "Psychotherapy": 80,
       "Vaccinations": 100,
       "Physiotherapy": 80,
       "Optical": 80
@@ -51,13 +52,16 @@
     "Child":  { "portalLabel": "Child Surname (2012)",  "aliases": ["Child Surname"] }
   },
 
+  "_treatmentTypesNote": "keyword-scored → the exact portal category + sub-treatment (subtype) + diagnosis reason. Orthodontic needs a dental plan + X-ray upload; list them in requiredDocs and map files in supplementaryDocs. See reference/allianz-portal-reference.json for every valid category/subtype.",
   "treatmentTypes": {
-    "orthodontic":   { "category": "Dental Expenses", "subtype": "Orthodontic treatment",     "reason": "Teeth misalignment",   "requiredDocs": ["dentalPlan", "xray"], "keywords": ["invisalign", "oblouk", "niti", "ortodont", "retainer"] },
-    "routineDental": { "category": "Dental Expenses", "subtype": "Routine Dental Treatment",   "reason": "Dental Treatment",     "requiredDocs": [],                     "keywords": ["zubního kamene", "zubního povlaku", "hygiena", "preventivní", "prohlídka", "bitewing"] },
-    "laboratory":    { "category": "Tests/Scans",     "subtype": "Laboratory tests",          "reason": "Routine Health Check", "requiredDocs": [],                     "keywords": ["laborator", "odběr krve", "lab fee", "igg", "krevní"] },
-    "vaccination":   { "category": "Vaccination",     "subtype": null,                        "reason": null,                   "requiredDocs": [],                     "keywords": ["očkov", "vakcín", "vaccinat"] },
-    "prescription":  { "category": "Medication and Medical Aids", "subtype": null,             "reason": null,                   "requiredDocs": ["prescription"],       "keywords": ["lék", "recept", "lékárna", "pharmacy", "medication"] },
-    "doctorVisit":   { "category": "Doctor Visit",    "subtype": null,                        "reason": null,                   "requiredDocs": [],                     "keywords": ["konzultace", "vyšetření", "consultation"] }
+    "orthodontic":   { "category": "Dental Expenses", "subtype": "Orthodontic treatment",     "reason": "Teeth misalignment",   "requiredDocs": ["dentalPlan", "xray"], "keywords": ["invisalign", "oblouk", "niti", "ortodont", "retainer", "rovnátk", "aparát"] },
+    "routineDental": { "category": "Dental Expenses", "subtype": "Routine Dental Treatment",   "reason": "Dental Treatment",     "requiredDocs": [],                     "keywords": ["zubního kamene", "hygiena", "preventivní", "prohlídka", "bitewing", "výplň", "extrakce", "rtg", "ošetř", "pedostom", "stomatolog", "citliv", "zubn"] },
+    "psychotherapy": { "category": "Doctor Visit",    "subtype": "Psychotherapy consultation", "reason": null,                   "requiredDocs": [],                     "keywords": ["psychoterap", "psychotherapy", "terapeutick", "terapie", "sezení", "session", "poradensk"] },
+    "physiotherapy": { "category": "Doctor Visit",    "subtype": "Physiotherapy",              "reason": null,                   "requiredDocs": [],                     "keywords": ["fyzioterap", "physiotherap", "rehabilit"] },
+    "specialist":    { "category": "Doctor Visit",    "subtype": "Specialist Visit",           "reason": null,                   "requiredDocs": [],                     "keywords": ["specialist", "konzultace", "vyšetření", "consultation"] },
+    "laboratory":    { "category": "Tests/Scans",     "subtype": "Laboratory tests",           "reason": null,                   "requiredDocs": [],                     "keywords": ["laborator", "odběr krve", "lab fee", "krevní"] },
+    "vaccination":   { "category": "Vaccination",     "subtype": "Vaccination",                "reason": null,                   "requiredDocs": [],                     "keywords": ["očkov", "vakcín", "vaccinat"] },
+    "prescription":  { "category": "Medication and Medical Aids", "subtype": "Medication",     "reason": null,                   "requiredDocs": ["prescription"],       "keywords": ["lék", "recept", "lékárna", "pharmacy", "medication"] }
   },
 
   "supplementaryDocs": {

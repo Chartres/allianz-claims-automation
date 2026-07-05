@@ -40,11 +40,14 @@ const ok = (name, cond) => eq(name, !!cond, true);
   const claim = {
     id: '84512005', received_date: '09/04/2026', received_iso: '2026-04-09', status: 'In Progress',
     check: 'pending', total_invoiced: 3200, total_reimbursed: 0, reimbursements: [],
-    invoices: [{ patient: 'Tomáš', provider: 'Stomatologie Vltava', amount: 3200, category: 'Dental treatment', coverage_pct: 100 }],
+    invoices: [{ patient: 'Tomáš', provider: 'Stomatologie Vltava', amount: 3200, category: 'Dental treatment', coverage_pct: 100, invoice_date: '2 Apr 2026' }],
   };
   const back = claimsFromCSV(claimsToCSV([claim]));
   eq('round-trips a claim', [back[0].id, back[0].total_invoiced, back[0].invoices[0].amount], ['84512005', 3200, 3200]);
   eq('round-trip regains received_iso', back[0].received_iso, '2026-04-09');
+  // invoice_date must survive so the duplicate-filing guard still works on imported data
+  eq('round-trips invoice_date', back[0].invoices[0].invoice_date, '2 Apr 2026');
+  ok('import tolerates CSVs without the InvoiceDate column', claimsFromCSV('Claim,Received,Status,Check,Patient,Provider,Category,Coverage%,Amount,ClaimInvoiced,ClaimReimbursed\n1,12/01/2026,Completed,,J,P,C,80,10,10,8')[0].invoices[0].invoice_date === '');
 }
 
 console.log(fail ? `\n✗ FAIL — ${pass} passed, ${fail} failed.` : `\n✓ PASS — ${pass} passed, 0 failed.`);
