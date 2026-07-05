@@ -42,9 +42,27 @@ function indexConfirmations() {
   return byVs;
 }
 
+// Signatures of invoices already filed, from the crawled history (data/claims.json). Lets us
+// skip re-filing something that's already a claim. Keyed by patientKey|DD/MM/YYYY|roundedAmount.
+function loadSubmitted() {
+  const f = path.join(cfg._root, 'data', 'claims.json');
+  if (!fs.existsSync(f)) return null; // no history crawled yet → can't check, don't block
+  const MON = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+  const norm = s => { const m = s && s.match(/(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})/); return m ? `${m[1].padStart(2, '0')}/${MON[m[2].toLowerCase()]}/${m[3]}` : null; };
+  const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const claims = Array.isArray(data) ? data : (data.claims || []);
+  const byKey = {};
+  for (const c of claims) for (const inv of (c.invoices || [])) {
+    const key = `${(inv.patient || '').split(/\s+/)[0]}|${norm(inv.invoice_date)}|${Math.round(inv.amount)}`;
+    byKey[key] = c.id;
+  }
+  return byKey;
+}
+
 function buildPlan() {
   if (!fs.existsSync(INTAKE)) fs.mkdirSync(INTAKE, { recursive: true });
   const confByVs = indexConfirmations();
+  const submitted = loadSubmitted();
   const files = fs.readdirSync(INTAKE).filter(f => supported(f) && f !== '_processed');
   const plan = [];
   for (const f of files) {
@@ -82,11 +100,32 @@ function buildPlan() {
     if (isImage && !parsed._sidecar && (parsed.error || parsed.patientName === '?' || parsed.amount === '?'))
       issues.length = 0, issues.push(`needs agent vision — view this image and write ${f}.json {patient, date "DD/MM/YYYY", amount, provider, treatmentType}`);
 
+    // Already filed in a previous claim? (matched by patient + date + amount against history.)
+    if (submitted && parsed.amount !== '?' && parsed.date !== '?') {
+      const already = submitted[`${parsed.patientName}|${parsed.date}|${Math.round(Number(parsed.amount))}`];
+      if (already) issues.push(`already submitted (claim ${already})`);
+    }
+
     const patient = cfg.patients[parsed.patientName];
     const conf = parsed.vs && confByVs[parsed.vs] ? confByVs[parsed.vs] : null;
     plan.push({ file: f, full, parsed, cls, patient, conf, issues });
   }
+  dedupeByVs(plan);
   return plan;
+}
+
+// The same invoice often arrives more than once (original + reissued "paid" copy + a receipt).
+// Collapse entries that share a faktura number (VS): keep the best one, flag the rest so they
+// aren't filed twice. Best = paid, then no other issues, then a filename that looks like a receipt.
+function dedupeByVs(plan) {
+  const groups = {};
+  for (const e of plan) { const vs = e.parsed.vs; if (vs) (groups[vs] ||= []).push(e); }
+  const rank = e => (e.parsed.paid === true ? 4 : 0) + (e.issues.length === 0 ? 2 : 0) + (/doklad|uhrazen/i.test(e.file) ? 1 : 0);
+  for (const [vs, group] of Object.entries(groups)) {
+    if (group.length < 2) continue;
+    const keep = group.slice().sort((a, b) => rank(b) - rank(a))[0];
+    for (const e of group) if (e !== keep) e.issues.push(`duplicate of ${keep.file} (VS ${vs})`);
+  }
 }
 
 function printPlan(plan) {
@@ -128,8 +167,10 @@ async function fileClaim(ready, submit) {
       reason: e.cls.type.reason || null,
       docs: e.cls.docs,
     };
-    const r = await portal.addInvoice(page, cfg, inv);
-    if (r.saveDisabled) { console.log(`  ✗ ${e.file}: save disabled (invalid: ${r.invalid.join(',')||'?'}) — skipping`); continue; }
+    let r;
+    try { r = await portal.addInvoice(page, cfg, inv); }
+    catch (err) { console.log(`  ✗ ${e.file}: ${err.message.split('\n')[0]} — stopping, ${filed.length} saved so far`); break; }
+    if (r.saveDisabled) { console.log(`  ✗ ${e.file}: save disabled (invalid: ${r.invalid.join(',') || '?'}) — stopping, ${filed.length} saved so far`); break; }
     await portal.saveInvoice(page);
     console.log(`  ✓ ${e.parsed.patientName} ${e.parsed.amount} ${e.cls.typeKey}`);
     filed.push(e);
@@ -148,7 +189,10 @@ async function fileClaim(ready, submit) {
   await browser.close();
 }
 
-(async () => {
+// Exposed for the self-check test; also lets other tools reuse the pure helpers.
+module.exports = { dedupeByVs, loadSubmitted };
+
+if (require.main === module) (async () => {
   const plan = buildPlan();
   if (!plan.length) { console.log(`No invoices in ${INTAKE}. Drop invoice PDFs or photos (PDF/JPG/PNG/HEIC…) there and re-run.`); return; }
   const ready = printPlan(plan);
